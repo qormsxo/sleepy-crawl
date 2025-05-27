@@ -1,4 +1,4 @@
-# NocturnalPost
+# SleepyCrawl
 
 **sleepy crawl**는 야간 및 이상한 시간대에 인터넷 커뮤니티 글들을 크롤링하고, 시간대별 글 패턴을 분석하는 백엔드 서비스입니다.  
 Node.js, TypeScript, Express 기반으로 개발되었으며, MongoDB에 데이터를 저장합니다.
