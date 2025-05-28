@@ -19,6 +19,13 @@ export class CrawlerService {
     'Upgrade-Insecure-Requests': '1'
   };
 
+  private cleanText(text: string): string {
+    return text
+      .replace(/[\n\t]/g, '') // 줄바꿈과 탭 제거
+      .replace(/\s+/g, ' ')   // 연속된 공백을 하나로
+      .trim();                // 앞뒤 공백 제거
+  }
+
   async crawlWithCheerio(url: string): Promise<any> {
     try {
       const response = await axios.get(url);
@@ -71,16 +78,54 @@ export class CrawlerService {
       const response = await axios.get('https://m.dcinside.com/', {
         headers: this.headers
       });
-      const $ = cheerio.load(response.data);
-      
-      // HTML에서 모든 텍스트 추출
-      const texts = $('body')
-        .text()
-        .split('\n')
-        .map(text => text.trim())
-        .filter(text => text.length > 0);
 
-      return texts.map(text => ({ text }));
+      // HTML 응답 확인
+      console.log('전체 HTML:', response.data);
+
+      const $ = cheerio.load(response.data);
+      const posts: DCPost[] = [];
+
+      // main-wrapping 클래스를 찾음
+      $('.main-wrapping').each((_, mainWrap) => {
+        console.log('main-wrapping found');
+        
+        // 재귀적으로 하위 요소를 탐색하는 함수
+        const findTargetElements = (element: cheerio.Element) => {
+          // grid livebest-group 클래스를 가진 div 찾기
+          const $element = $(element);
+          
+          if ($element.hasClass('grid') && $element.hasClass('livebest-group')) {
+            console.log('grid livebest-group found');
+            
+            // thum-rtg-1-slider 클래스를 가진 div 찾기
+            $element.find('*').each((_, el) => {
+              if ($(el).hasClass('thum-rtg-1-slider')) {
+                console.log('thum-rtg-1-slider found');
+                
+                // p 태그 찾기
+                $(el).find('p').each((_, p) => {
+                  const text = this.cleanText($(p).text());
+                  if (text) {
+                    console.log('Found p tag text:', text);
+                    posts.push({ text });
+                  }
+                });
+              }
+            });
+          }
+
+          // 모든 자식 요소에 대해 재귀적으로 탐색
+          $element.children().each((_, child) => {
+            findTargetElements(child);
+          });
+        };
+
+        // 재귀 탐색 시작
+        findTargetElements(mainWrap);
+      });
+
+      console.log('최종 결과:', posts);
+      return posts;
     } catch (error) {
       console.error('Cheerio 크롤링 에러:', error);
       throw new Error(`Failed to crawl DCInside: ${error}`);
@@ -109,20 +154,62 @@ export class CrawlerService {
         timeout: 30000
       });
 
-      // 페이지의 모든 텍스트 추출
-      const texts = await page.evaluate(() => {
-        // 스크립트와 스타일 태그 제거
-        const scripts = document.querySelectorAll('script, style');
-        scripts.forEach(script => script.remove());
+      // HTML 내용 확인
+      const pageContent = await page.content();
+      console.log('전체 HTML:', pageContent);
+
+      const posts = await page.evaluate(() => {
+        const results: any[] = [];
         
-        // body의 텍스트만 추출
-        return document.body.innerText
-          .split('\n')
-          .map(text => text.trim())
-          .filter(text => text.length > 0);
+        // 텍스트 정리 함수를 페이지 컨텍스트 내에서 직접 정의
+        const cleanText = (text: string) => {
+          return text
+            .replace(/[\n\t]/g, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+        };
+        
+        // main-wrapping 클래스를 찾음
+        const mainWraps = document.querySelectorAll('.main-wrapping');
+        console.log('main-wrapping elements found:', mainWraps.length);
+
+        const findTargetElements = (element: Element) => {
+          // grid livebest-group 클래스를 가진 div 찾기
+          if (element.classList.contains('grid') && element.classList.contains('livebest-group')) {
+            console.log('grid livebest-group found');
+            
+            // thum-rtg-1-slider 클래스를 가진 모든 하위 요소 찾기
+            element.querySelectorAll('*').forEach(el => {
+              if (el.classList.contains('thum-rtg-1-slider')) {
+                console.log('thum-rtg-1-slider found');
+                
+                // p 태그 찾기
+                el.querySelectorAll('p').forEach(p => {
+                  const text = cleanText(p.textContent || '');
+                  if (text) {
+                    console.log('Found p tag text:', text);
+                    results.push({ text });
+                  }
+                });
+              }
+            });
+          }
+
+          // 모든 자식 요소에 대해 재귀적으로 탐색
+          Array.from(element.children).forEach(child => {
+            findTargetElements(child);
+          });
+        };
+
+        mainWraps.forEach(wrap => {
+          findTargetElements(wrap);
+        });
+
+        return results;
       });
 
-      return texts.map(text => ({ text }));
+      console.log('최종 결과:', posts);
+      return posts;
     } catch (error) {
       console.error('Puppeteer 크롤링 에러:', error);
       throw new Error(`Failed to crawl DCInside: ${error}`);
