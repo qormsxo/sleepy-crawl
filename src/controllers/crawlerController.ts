@@ -1,30 +1,24 @@
 import { Request, Response } from 'express';
-import { CrawlerService } from '../services/crawlerService';
+import { DCInsideCrawler } from '../services/DCInsideCrawler';
+import { crawlerConfig } from '../config/crawler.config';
 
 export class CrawlerController {
-  private crawlerService: CrawlerService;
+  private crawler: DCInsideCrawler;
 
   constructor() {
-    this.crawlerService = new CrawlerService();
+    this.crawler = new DCInsideCrawler(crawlerConfig);
   }
 
-  crawlDCInsideWithCheerio = async (_: Request, res: Response) => {
+  crawlDCInside = async (_: Request, res: Response) => {
     try {
-      const data = await this.crawlerService.crawlDCInsideWithCheerio();
+      await this.crawler.initialize();
+      const data = await this.crawler.crawl();
       res.json(data);
     } catch (error) {
       console.error('크롤링 실패:', error);
       res.status(500).json({ error: 'DC인사이드 크롤링에 실패했습니다.' });
-    }
-  };
-
-  crawlDCInsideWithPuppeteer = async (_: Request, res: Response) => {
-    try {
-      const data = await this.crawlerService.crawlDCInsideWithPuppeteer();
-      res.json(data);
-    } catch (error) {
-      console.error('크롤링 실패:', error);
-      res.status(500).json({ error: 'DC인사이드 크롤링에 실패했습니다.' });
+    } finally {
+      await this.crawler.cleanup();
     }
   };
 } 

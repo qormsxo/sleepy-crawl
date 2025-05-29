@@ -4,7 +4,6 @@ import { CrawlerController } from '../controllers/crawlerController';
 const router = Router();
 const crawlerController = new CrawlerController();
 
-router.get('/dcinside/cheerio', crawlerController.crawlDCInsideWithCheerio);
-router.get('/dcinside/puppeteer', crawlerController.crawlDCInsideWithPuppeteer);
+router.get('/dcinside', crawlerController.crawlDCInside);
 
-export { router as routes }; 
+export default router; 

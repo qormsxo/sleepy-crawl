@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
-import { routes } from './routes';
+import router from './routes';
 import { errorHandler } from './middleware/errorHandler';
 
 dotenv.config();
@@ -17,7 +17,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // 라우트
-app.use('/api', routes);
+app.use('/api', router);
 
 // 에러 핸들러
 app.use(errorHandler);
