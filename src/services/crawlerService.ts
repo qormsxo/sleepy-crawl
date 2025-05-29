@@ -1,9 +1,11 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
-import puppeteer from 'puppeteer';
+import puppeteer, { Page } from 'puppeteer';
 
 interface DCPost {
-  text: string;
+  title: string;
+  url?: string;
+  content?: string;
 }
 
 export class CrawlerService {
@@ -21,9 +23,61 @@ export class CrawlerService {
 
   private cleanText(text: string): string {
     return text
-      .replace(/[\n\t]/g, '') // 줄바꿈과 탭 제거
-      .replace(/\s+/g, ' ')   // 연속된 공백을 하나로
-      .trim();                // 앞뒤 공백 제거
+      .replace(/[\n\t]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  private extractUrlFromHref(href: string): string | null {
+    const match = href.match(/\/board\/[^']+/);
+    return match ? `https://m.dcinside.com${match[0]}` : null;
+  }
+
+  private removeDuplicates(posts: DCPost[]): DCPost[] {
+    const uniquePosts = new Map<string, DCPost>();
+    posts.forEach(post => {
+      if (!uniquePosts.has(post.title)) {
+        uniquePosts.set(post.title, post);
+      }
+    });
+    return Array.from(uniquePosts.values());
+  }
+
+  private async fetchPostContent(page: Page, url: string): Promise<string | null> {
+    try {
+      await page.goto(url, {
+        waitUntil: 'networkidle0',
+        timeout: 30000
+      });
+
+      const content = await page.evaluate(() => {
+        let content = '';
+        
+        // #top > .wrap_inner 내부의 텍스트
+        const wrapInner = document.querySelector('#top .wrap_inner');
+        if (wrapInner) {
+          content += wrapInner.textContent || '';
+        }
+
+        // .view_content_wrap 내부의 p 태그 텍스트
+        const viewContentWrap = document.querySelector('.view_content_wrap');
+        if (viewContentWrap) {
+          const paragraphs = viewContentWrap.querySelectorAll('p');
+          paragraphs.forEach(p => {
+            content += ' ' + (p.textContent || '');
+          });
+        }
+
+        return content.replace(/[\n\t]/g, '')
+                     .replace(/\s+/g, ' ')
+                     .trim();
+      });
+
+      return content || null;
+    } catch (error) {
+      console.error(`Failed to fetch content from ${url}:`, error);
+      return null;
+    }
   }
 
   async crawlWithCheerio(url: string): Promise<any> {
@@ -51,21 +105,54 @@ export class CrawlerService {
         headless: 'new',
         args: ['--no-sandbox', '--disable-setuid-sandbox']
       });
-      
+      console.log("crawlWithPuppeteer ");
       const page = await browser.newPage();
-      await page.goto(url, { waitUntil: 'networkidle0' });
+      await page.setUserAgent(this.headers['User-Agent']);
+      await page.setExtraHTTPHeaders(this.headers);
+      await page.goto(url, { waitUntil: 'networkidle0', timeout: 30000 });
       
-      // 여기에 Puppeteer를 사용한 크롤링 로직을 구현합니다
-      // 예시: 페이지 타이틀과 메타 설명 수집
-      const data = await page.evaluate(() => ({
-        title: document.title,
-        description: document.querySelector('meta[name="description"]')?.getAttribute('content'),
-        url: window.location.href
-      }));
+      const data = await page.evaluate(() => {
+        // 본문 내용 추출 (container > brick-wid > gall-thum-btm-inner 경로)
+        const container = document.querySelector('.container');
+        let mainContent = '';
+        
+        if (container) {
+          const brickWid = container.querySelector('.brick-wid');
+          if (brickWid) {
+            const gallInner = brickWid.querySelector('.gall-thum-btm-inner');
+            if (gallInner) {
+              const paragraphs = gallInner.querySelectorAll('p');
+              mainContent = Array.from(paragraphs)
+                .map(p => p.textContent || '')
+                .filter(text => text.trim() !== '')
+                .join('\n');
+            }
+          }
+        }
+
+        // 댓글 내용 추출 (comment_box id를 가진 div 안의 모든 p)
+        const commentBox = document.getElementById('comment_box');
+        const comments = [];
+        
+        if (commentBox) {
+          const commentParagraphs = commentBox.querySelectorAll('p');
+          comments.push(...Array.from(commentParagraphs)
+            .map(p => p.textContent || '')
+            .filter(text => text.trim() !== ''));
+        }
+
+        return {
+          content: mainContent || null,
+          comments
+        };
+      });
       
+      console.log(data);
       return data;
-    } catch (error) {
-      throw new Error(`Failed to crawl with Puppeteer: ${error}`);
+    } catch (error: any) {
+      console.log(`Failed to crawl with Puppeteer: ${url}`, error);
+      console.error(`Failed to crawl with Puppeteer: ${url}`, error);
+      return { content: null, error: error.message };
     } finally {
       if (browser) {
         await browser.close();
@@ -79,52 +166,50 @@ export class CrawlerService {
         headers: this.headers
       });
 
-      // HTML 응답 확인
-      console.log('전체 HTML:', response.data);
-
       const $ = cheerio.load(response.data);
-      const posts: DCPost[] = [];
+      let posts: DCPost[] = [];
 
-      // main-wrapping 클래스를 찾음
       $('.main-wrapping').each((_, mainWrap) => {
-        console.log('main-wrapping found');
-        
-        // 재귀적으로 하위 요소를 탐색하는 함수
         const findTargetElements = (element: cheerio.Element) => {
-          // grid livebest-group 클래스를 가진 div 찾기
           const $element = $(element);
           
           if ($element.hasClass('grid') && $element.hasClass('livebest-group')) {
-            console.log('grid livebest-group found');
-            
-            // thum-rtg-1-slider 클래스를 가진 div 찾기
             $element.find('*').each((_, el) => {
               if ($(el).hasClass('thum-rtg-1-slider')) {
-                console.log('thum-rtg-1-slider found');
-                
-                // p 태그 찾기
-                $(el).find('p').each((_, p) => {
-                  const text = this.cleanText($(p).text());
-                  if (text) {
-                    console.log('Found p tag text:', text);
-                    posts.push({ text });
+                $(el).find('ul li').each((_, li) => {
+                  const $li = $(li);
+                  const $a = $li.find('a');
+                  const $p = $li.find('p');
+                  const title = this.cleanText($p.text());
+                  const href = $a.attr('href');
+                  
+                  if (title && href) {
+                    const url = this.extractUrlFromHref(href);
+                    if (url) {
+                      posts.push({
+                        title,
+                        url
+                      });
+                    } else {
+                      posts.push({ title });
+                    }
                   }
                 });
               }
             });
           }
 
-          // 모든 자식 요소에 대해 재귀적으로 탐색
           $element.children().each((_, child) => {
             findTargetElements(child);
           });
         };
 
-        // 재귀 탐색 시작
         findTargetElements(mainWrap);
       });
 
-      console.log('최종 결과:', posts);
+      // 중복 제거
+      posts = this.removeDuplicates(posts);
+
       return posts;
     } catch (error) {
       console.error('Cheerio 크롤링 에러:', error);
@@ -154,48 +239,47 @@ export class CrawlerService {
         timeout: 30000
       });
 
-      // HTML 내용 확인
-      const pageContent = await page.content();
-      console.log('전체 HTML:', pageContent);
-
-      const posts = await page.evaluate(() => {
+      let posts = await page.evaluate(() => {
         const results: any[] = [];
         
-        // 텍스트 정리 함수를 페이지 컨텍스트 내에서 직접 정의
         const cleanText = (text: string) => {
           return text
             .replace(/[\n\t]/g, '')
             .replace(/\s+/g, ' ')
             .trim();
         };
+
+        const extractUrlFromHref = (href: string): string | null => {
+          const match = href.match(/\/board\/[^']+/);
+          return match ? `https://m.dcinside.com${match[0]}` : null;
+        };
         
-        // main-wrapping 클래스를 찾음
         const mainWraps = document.querySelectorAll('.main-wrapping');
-        console.log('main-wrapping elements found:', mainWraps.length);
 
         const findTargetElements = (element: Element) => {
-          // grid livebest-group 클래스를 가진 div 찾기
           if (element.classList.contains('grid') && element.classList.contains('livebest-group')) {
-            console.log('grid livebest-group found');
-            
-            // thum-rtg-1-slider 클래스를 가진 모든 하위 요소 찾기
             element.querySelectorAll('*').forEach(el => {
               if (el.classList.contains('thum-rtg-1-slider')) {
-                console.log('thum-rtg-1-slider found');
-                
-                // p 태그 찾기
-                el.querySelectorAll('p').forEach(p => {
-                  const text = cleanText(p.textContent || '');
-                  if (text) {
-                    console.log('Found p tag text:', text);
-                    results.push({ text });
+                el.querySelectorAll('ul li').forEach(li => {
+                  const a = li.querySelector('a');
+                  const p = li.querySelector('p');
+                  const title = cleanText(p?.textContent || '');
+                  const href = a?.getAttribute('href');
+                  
+                  if (title && href) {
+                    const url = extractUrlFromHref(href);
+                    if (url) {
+                      results.push({
+                        title,
+                        url
+                      });
+                    }
                   }
                 });
               }
             });
           }
 
-          // 모든 자식 요소에 대해 재귀적으로 탐색
           Array.from(element.children).forEach(child => {
             findTargetElements(child);
           });
@@ -208,8 +292,29 @@ export class CrawlerService {
         return results;
       });
 
-      console.log('최종 결과:', posts);
-      return posts;
+      // 중복 제거
+      posts = this.removeDuplicates(posts);
+      console.log('Found posts:', posts.length);
+      
+      // 각 포스트의 내용 가져오기
+      const postsWithContent = [];
+      for (const post of posts) {
+        if (post.url) {
+          const { content } = await this.crawlWithPuppeteer(post.url);
+          if (content) {
+            postsWithContent.push({
+              ...post,
+              content
+            });
+          } else {
+            postsWithContent.push(post);
+          }
+        } else {
+          postsWithContent.push(post);
+        }
+      }
+
+      return postsWithContent;
     } catch (error) {
       console.error('Puppeteer 크롤링 에러:', error);
       throw new Error(`Failed to crawl DCInside: ${error}`);
