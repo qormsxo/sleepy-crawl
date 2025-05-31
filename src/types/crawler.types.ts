@@ -16,6 +16,13 @@ export interface DCComment {
   createdAt?: Date;
 }
 
+export interface TrendAnalysis {
+  keywords: string[];
+  summary: string;
+  topics: { topic: string; count: number }[];
+  sentiment: string;
+}
+
 export interface CrawlerConfig {
   headers: {
     'User-Agent': string;
@@ -33,8 +40,13 @@ export interface CrawlerConfig {
   postsLimit: number;
 }
 
+export interface CrawlerResult {
+  posts: { title: string }[];
+  trends: TrendAnalysis;
+}
+
 export interface ICrawler {
-  crawl(): Promise<DCPost[]>;
+  crawl(): Promise<CrawlerResult>;
   initialize(): Promise<void>;
   cleanup(): Promise<void>;
 }

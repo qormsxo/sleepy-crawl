@@ -1,14 +1,17 @@
 import { DCInsideCrawler } from '../DCInsideCrawler';
 import { CrawlerConfig } from '../../types/crawler.types';
 import puppeteer, { Browser, Page } from 'puppeteer';
+import { TrendAnalyzer } from '../trendAnalyzer';
 
-// Mock Puppeteer
+// Mock Puppeteer and TrendAnalyzer
 jest.mock('puppeteer');
+jest.mock('../trendAnalyzer');
 
 describe('DCInsideCrawler', () => {
   let crawler: DCInsideCrawler;
   let mockBrowser: jest.Mocked<Browser>;
   let mockPage: jest.Mocked<Page>;
+  let mockTrendAnalyzer: jest.Mocked<TrendAnalyzer>;
 
   const mockConfig: CrawlerConfig = {
     headers: {
@@ -24,7 +27,7 @@ describe('DCInsideCrawler', () => {
     },
     timeout: 30000,
     waitUntil: 'networkidle0',
-    postsLimit: 10
+    postsLimit: 2
   };
 
   beforeEach(() => {
@@ -42,7 +45,17 @@ describe('DCInsideCrawler', () => {
       close: jest.fn(),
     } as unknown as jest.Mocked<Browser>;
 
+    mockTrendAnalyzer = {
+      analyzeTrends: jest.fn().mockResolvedValue({
+        keywords: ['테스트', '게시물'],
+        summary: '테스트 관련 게시물이 인기입니다.',
+        topics: [{ topic: '테스트', count: 2 }],
+        sentiment: '중립'
+      })
+    } as unknown as jest.Mocked<TrendAnalyzer>;
+
     (puppeteer.launch as jest.Mock).mockResolvedValue(mockBrowser);
+    (TrendAnalyzer as jest.Mock).mockImplementation(() => mockTrendAnalyzer);
 
     crawler = new DCInsideCrawler(mockConfig);
   });
@@ -52,7 +65,7 @@ describe('DCInsideCrawler', () => {
   });
 
   describe('initialize', () => {
-    it('브라우저와 페이지를 성공적으로 초기화해야 합니다', async () => {
+    it('브라우저와 페이지를 초기화해야 합니다', async () => {
       await crawler.initialize();
 
       expect(puppeteer.launch).toHaveBeenCalledWith({
@@ -71,7 +84,7 @@ describe('DCInsideCrawler', () => {
   });
 
   describe('cleanup', () => {
-    it('브라우저 리소스를 정리해야 합니다', async () => {
+    it('브라우저를 종료해야 합니다', async () => {
       await crawler.initialize();
       await crawler.cleanup();
 
@@ -88,7 +101,7 @@ describe('DCInsideCrawler', () => {
       await crawler.cleanup();
     });
 
-    it('메인 페이지에서 게시물을 크롤링해야 합니다', async () => {
+    it('메인 페이지에서 게시물을 크롤링하고 트렌드를 분석해야 합니다', async () => {
       const mockPosts = [
         { title: '테스트 게시물 1', url: 'https://m.dcinside.com/board/test/1' },
         { title: '테스트 게시물 2', url: 'https://m.dcinside.com/board/test/2' }
@@ -110,9 +123,24 @@ describe('DCInsideCrawler', () => {
         waitUntil: mockConfig.waitUntil,
         timeout: mockConfig.timeout
       });
-      expect(result.length).toBeLessThanOrEqual(mockConfig.postsLimit);
-      expect(result[0]).toHaveProperty('content');
-      expect(result[0]).toHaveProperty('comments');
+
+      // 게시물이 제목만 포함하는지 확인
+      expect(result.posts).toEqual([
+        { title: '테스트 게시물 1' },
+        { title: '테스트 게시물 2' }
+      ]);
+
+      // 게시물 수가 config.postsLimit을 초과하지 않는지 확인
+      expect(result.posts.length).toBeLessThanOrEqual(mockConfig.postsLimit);
+
+      // 트렌드 분석이 호출되었는지 확인
+      expect(mockTrendAnalyzer.analyzeTrends).toHaveBeenCalled();
+
+      // 트렌드 분석 결과의 구조 확인
+      expect(result.trends).toHaveProperty('keywords');
+      expect(result.trends).toHaveProperty('summary');
+      expect(result.trends).toHaveProperty('topics');
+      expect(result.trends).toHaveProperty('sentiment');
     });
 
     it('중복된 게시물을 제거해야 합니다', async () => {
@@ -132,12 +160,14 @@ describe('DCInsideCrawler', () => {
 
       const result = await crawler.crawl();
 
-      expect(result.length).toBe(1);
-      expect(result[0].title).toBe('중복 게시물');
+      // 중복 제거 후 하나의 게시물만 남아있는지 확인
+      expect(result.posts).toHaveLength(1);
+      expect(result.posts[0]).toEqual({ title: '중복 게시물' });
     });
 
     it('브라우저가 초기화되지 않은 경우 에러를 발생시켜야 합니다', async () => {
-      await crawler.cleanup();
+      await crawler.cleanup(); // 브라우저 초기화 해제
+
       await expect(crawler.crawl()).rejects.toThrow('Browser not initialized');
     });
   });

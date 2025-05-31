@@ -1,5 +1,6 @@
 import puppeteer, { Browser, Page } from 'puppeteer';
 import { ICrawler, IPageEvaluator, DCPost, CrawlerConfig } from '../types/crawler.types';
+import { TrendAnalyzer } from './trendAnalyzer';
 
 /**
  * DCInside 모바일 웹사이트 크롤러
@@ -10,12 +11,15 @@ import { ICrawler, IPageEvaluator, DCPost, CrawlerConfig } from '../types/crawle
 export class DCInsideCrawler implements ICrawler, IPageEvaluator {
   private browser: Browser | null = null;
   private page: Page | null = null;
+  private trendAnalyzer: TrendAnalyzer;
 
   /**
    * DCInsideCrawler 생성자
    * @param {CrawlerConfig} config - 크롤러 설정 (헤더, 타임아웃, 게시물 제한 등)
    */
-  constructor(private readonly config: CrawlerConfig) {}
+  constructor(private readonly config: CrawlerConfig) {
+    this.trendAnalyzer = new TrendAnalyzer();
+  }
 
   /**
    * Puppeteer 브라우저와 페이지를 초기화합니다.
@@ -50,12 +54,20 @@ export class DCInsideCrawler implements ICrawler, IPageEvaluator {
   }
 
   /**
-   * DCInside 실시간 베스트 게시물을 크롤링합니다.
+   * DCInside 실시간 베스트 게시물을 크롤링하고 트렌드를 분석합니다.
    * config.postsLimit 만큼의 게시물을 수집하며, 각 게시물의 내용과 댓글을 함께 가져옵니다.
-   * @returns {Promise<DCPost[]>} 크롤링된 게시물 배열
+   * @returns {Promise<{ posts: { title: string }[]; trends: any }>} 크롤링된 게시물 배열과 트렌드 분석 결과
    * @throws {Error} 브라우저가 초기화되지 않았거나 크롤링 중 에러 발생 시
    */
-  async crawl(): Promise<DCPost[]> {
+  async crawl(): Promise<{
+    posts: { title: string }[];
+    trends: {
+      keywords: string[];
+      summary: string;
+      topics: { topic: string; count: number }[];
+      sentiment: string;
+    };
+  }> {
     try {
       if (!this.page) {
         throw new Error('Browser not initialized');
@@ -92,7 +104,18 @@ export class DCInsideCrawler implements ICrawler, IPageEvaluator {
         count++;
       }
 
-      return postsWithContent;
+      // 트렌드 분석 수행
+      const trends = await this.trendAnalyzer.analyzeTrends(postsWithContent);
+
+      // 게시물 제목만 반환
+      const simplifiedPosts = postsWithContent.map(post => ({
+        title: post.title
+      }));
+
+      return {
+        posts: simplifiedPosts,
+        trends
+      };
     } catch (error) {
       console.error('크롤링 에러:', error);
       throw error;
