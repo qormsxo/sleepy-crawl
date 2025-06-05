@@ -17,9 +17,7 @@ export interface DCComment {
 }
 
 export interface TrendAnalysis {
-  keywords: string[];
   summary: string;
-  topics: { topic: string; count: number }[];
   sentiment: string;
 }
 

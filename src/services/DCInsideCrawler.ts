@@ -62,64 +62,57 @@ export class DCInsideCrawler implements ICrawler, IPageEvaluator {
   async crawl(): Promise<{
     posts: { title: string }[];
     trends: {
-      keywords: string[];
       summary: string;
-      topics: { topic: string; count: number }[];
       sentiment: string;
     };
   }> {
-    try {
-      if (!this.page) {
-        throw new Error('Browser not initialized');
-      }
+    if (!this.page) {
+      throw new Error('Browser not initialized');
+    }
 
-      await this.page.goto('https://m.dcinside.com/', {
-        waitUntil: this.config.waitUntil,
-        timeout: this.config.timeout
-      });
+    await this.page.goto('https://m.dcinside.com/', {
+      waitUntil: this.config.waitUntil,
+      timeout: this.config.timeout
+    });
 
-      let posts = await this.evaluateMainPage(this.page);
-      posts = this.removeDuplicates(posts);
+    let posts = await this.evaluateMainPage(this.page);
+    posts = this.removeDuplicates(posts);
+    
+    const postsWithContent = [];
+    let count = 0;
+    
+    for (const post of posts) {
+      if (count >= this.config.postsLimit) break;
       
-      const postsWithContent = [];
-      let count = 0;
-      
-      for (const post of posts) {
-        if (count >= this.config.postsLimit) break;
-        
-        if (post.url) {
-          const { content, comments } = await this.evaluatePostPage(this.page, post.url);
-          if (content) {
-            postsWithContent.push({
-              ...post,
-              content,
-              comments: comments.map(comment => ({ content: comment }))
-            });
-          } else {
-            postsWithContent.push(post);
-          }
+      if (post.url) {
+        const { content, comments } = await this.evaluatePostPage(this.page, post.url);
+        if (content) {
+          postsWithContent.push({
+            ...post,
+            content,
+            comments: comments.map(comment => ({ content: comment }))
+          });
         } else {
           postsWithContent.push(post);
         }
-        count++;
+      } else {
+        postsWithContent.push(post);
       }
-
-      // 트렌드 분석 수행
-      const trends = await this.trendAnalyzer.analyzeTrends(postsWithContent);
-
-      // 게시물 제목만 반환
-      const simplifiedPosts = postsWithContent.map(post => ({
-        title: post.title
-      }));
-
-      return {
-        posts: simplifiedPosts,
-        trends
-      };
-    } catch (error) {
-      console.error('크롤링 에러:', error);
-      throw error;
+      count++;
     }
+
+    // 트렌드 분석 수행
+    const trends = await this.trendAnalyzer.analyzeTrends(postsWithContent);
+
+    // 게시물 제목만 반환
+    const simplifiedPosts = postsWithContent.map(post => ({
+      title: post.title
+    }));
+
+    return {
+      posts: simplifiedPosts,
+      trends
+    };
   }
 
   /**

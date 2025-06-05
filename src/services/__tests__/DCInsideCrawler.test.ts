@@ -47,9 +47,7 @@ describe('DCInsideCrawler', () => {
 
     mockTrendAnalyzer = {
       analyzeTrends: jest.fn().mockResolvedValue({
-        keywords: ['테스트', '게시물'],
         summary: '테스트 관련 게시물이 인기입니다.',
-        topics: [{ topic: '테스트', count: 2 }],
         sentiment: '중립'
       })
     } as unknown as jest.Mocked<TrendAnalyzer>;
@@ -137,9 +135,7 @@ describe('DCInsideCrawler', () => {
       expect(mockTrendAnalyzer.analyzeTrends).toHaveBeenCalled();
 
       // 트렌드 분석 결과의 구조 확인
-      expect(result.trends).toHaveProperty('keywords');
       expect(result.trends).toHaveProperty('summary');
-      expect(result.trends).toHaveProperty('topics');
       expect(result.trends).toHaveProperty('sentiment');
     });
 
