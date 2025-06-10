@@ -22,24 +22,29 @@ export interface TrendAnalysis {
 }
 
 export interface CrawlerConfig {
+  baseUrl: string;
   headers: {
     'User-Agent': string;
     'Accept': string;
     'Accept-Language': string;
-    'Cache-Control': string;
-    'Pragma': string;
-    'Sec-Ch-Ua': string;
-    'Sec-Ch-Ua-Mobile': string;
-    'Sec-Ch-Ua-Platform': string;
-    'Upgrade-Insecure-Requests': string;
   };
-  timeout: number;
   waitUntil: 'networkidle0' | 'networkidle2' | 'load' | 'domcontentloaded';
+  timeout: number;
   postsLimit: number;
+  headless: 'new' | boolean;
+  browserArgs: string[];
+  viewport: {
+    width: number;
+    height: number;
+  };
+}
+
+export interface Post {
+  title: string;
 }
 
 export interface CrawlerResult {
-  posts: { title: string }[];
+  posts: Post[];
   trends: TrendAnalysis;
 }
 

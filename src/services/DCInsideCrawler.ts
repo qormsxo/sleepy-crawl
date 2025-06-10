@@ -1,6 +1,9 @@
 import puppeteer, { Browser, Page } from 'puppeteer';
 import { ICrawler, IPageEvaluator, DCPost, CrawlerConfig } from '../types/crawler.types';
 import { TrendAnalyzer } from './trendAnalyzer';
+import logger from '../utils/logger';
+import { crawlerConfig } from '../config/crawler.config';
+import { CrawlerResult, Post, TrendAnalysis } from '../types/crawler.types';
 
 /**
  * DCInside 모바일 웹사이트 크롤러
@@ -27,18 +30,21 @@ export class DCInsideCrawler implements ICrawler, IPageEvaluator {
    * @throws {Error} 브라우저 초기화 실패 시 에러
    */
   async initialize(): Promise<void> {
-    this.browser = await puppeteer.launch({
-      headless: 'new',
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-web-security',
-        '--disable-features=IsolateOrigins,site-per-process'
-      ]
-    });
-    this.page = await this.browser.newPage();
-    await this.page.setUserAgent(this.config.headers['User-Agent']);
-    await this.page.setExtraHTTPHeaders(this.config.headers);
+    try {
+      logger.info('브라우저 초기화 시작');
+      this.browser = await puppeteer.launch({
+        headless: this.config.headless,
+        args: this.config.browserArgs
+      });
+      this.page = await this.browser.newPage();
+      await this.page.setViewport(this.config.viewport);
+      await this.page.setUserAgent(this.config.headers['User-Agent']);
+      await this.page.setExtraHTTPHeaders(this.config.headers);
+      logger.info('브라우저 초기화 완료');
+    } catch (error) {
+      logger.error('브라우저 초기화 실패', { error });
+      throw error;
+    }
   }
 
   /**
@@ -46,10 +52,16 @@ export class DCInsideCrawler implements ICrawler, IPageEvaluator {
    * 크롤링 완료 후 반드시 호출해야 합니다.
    */
   async cleanup(): Promise<void> {
-    if (this.browser) {
-      await this.browser.close();
-      this.browser = null;
-      this.page = null;
+    try {
+      if (this.browser) {
+        logger.info('브라우저 종료');
+        await this.browser.close();
+        this.browser = null;
+        this.page = null;
+      }
+    } catch (error) {
+      logger.error('브라우저 종료 중 오류 발생', { error });
+      throw error;
     }
   }
 
@@ -67,52 +79,33 @@ export class DCInsideCrawler implements ICrawler, IPageEvaluator {
     };
   }> {
     if (!this.page) {
-      throw new Error('Browser not initialized');
+      throw new Error('브라우저가 초기화되지 않았습니다.');
     }
 
-    await this.page.goto('https://m.dcinside.com/', {
-      waitUntil: this.config.waitUntil,
-      timeout: this.config.timeout
-    });
+    try {
+      logger.info('메인 페이지 접속 시작');
+      await this.page.goto('https://m.dcinside.com/', {
+        waitUntil: this.config.waitUntil,
+        timeout: this.config.timeout
+      });
+      logger.info('메인 페이지 접속 완료');
 
-    let posts = await this.evaluateMainPage(this.page);
-    posts = this.removeDuplicates(posts);
-    
-    const postsWithContent = [];
-    let count = 0;
-    
-    for (const post of posts) {
-      if (count >= this.config.postsLimit) break;
-      
-      if (post.url) {
-        const { content, comments } = await this.evaluatePostPage(this.page, post.url);
-        if (content) {
-          postsWithContent.push({
-            ...post,
-            content,
-            comments: comments.map(comment => ({ content: comment }))
-          });
-        } else {
-          postsWithContent.push(post);
-        }
-      } else {
-        postsWithContent.push(post);
-      }
-      count++;
+      const posts = await this.evaluateMainPage(this.page);
+      logger.info('게시물 크롤링 완료', { count: posts.length });
+
+      const trends = await this.analyzeTrends(posts);
+      logger.info('트렌드 분석 완료', { sentiment: trends.sentiment });
+
+      return {
+        posts: posts.map(post => ({
+          title: post.title
+        })),
+        trends
+      };
+    } catch (error) {
+      logger.error('크롤링 중 오류 발생', { error });
+      throw error;
     }
-
-    // 트렌드 분석 수행
-    const trends = await this.trendAnalyzer.analyzeTrends(postsWithContent);
-
-    // 게시물 제목만 반환
-    const simplifiedPosts = postsWithContent.map(post => ({
-      title: post.title
-    }));
-
-    return {
-      posts: simplifiedPosts,
-      trends
-    };
   }
 
   /**
@@ -235,5 +228,18 @@ export class DCInsideCrawler implements ICrawler, IPageEvaluator {
       }
     });
     return Array.from(uniquePosts.values());
+  }
+
+  private async analyzeTrends(posts: DCPost[]): Promise<TrendAnalysis> {
+    try {
+      logger.debug('트렌드 분석 시작');
+      const postsText = posts.map(post => post.title).join('\n');
+      const trends = await this.trendAnalyzer.analyzeTrends(posts);
+      logger.debug('트렌드 분석 완료', { sentiment: trends.sentiment });
+      return trends;
+    } catch (error) {
+      logger.error('트렌드 분석 중 오류 발생', { error });
+      throw error;
+    }
   }
 } 
