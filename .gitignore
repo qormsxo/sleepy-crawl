@@ -58,3 +58,5 @@ temp/
 
 # Yarn Integrity file
 .yarn-integrity
+
+/output
