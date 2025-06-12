@@ -5,6 +5,7 @@ import { errorHandler } from '../middleware/errorHandler';
 const router = Router();
 const crawlerController = new CrawlerController();
 
-router.get('/dcinside', errorHandler , crawlerController.crawlDCInside);
+router.get('/dcinside', errorHandler, crawlerController.crawlDCInside);
+router.get('/dcinside/txt', errorHandler, crawlerController.crawlDCInsideTxt);
 
 export default router; 

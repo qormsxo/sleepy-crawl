@@ -242,4 +242,16 @@ export class DCInsideCrawler implements ICrawler, IPageEvaluator {
       throw error;
     }
   }
+
+  private mergeResults(posts: DCPost[], trends: TrendAnalysis): CrawlerResult {
+    return {
+      posts: posts.map(post => ({
+        title: post.title + '\n'
+      })),
+      trends: {
+        summary: trends.summary + '\n',
+        sentiment: trends.sentiment
+      }
+    };
+  }
 } 

@@ -87,7 +87,7 @@ export class TrendAnalyzer {
       const allSummaries = results
         .map(r => r.summary)
         .filter(summary => summary && summary !== '분석 실패')
-        .join(' ');
+        .join('\n');
 
       // 모든 감정 수집
       const allSentiments = results
@@ -153,11 +153,16 @@ export class TrendAnalyzer {
 }
 
 규칙:
-1. summary는 게시물들의 주요 내용과 전반적인 분위기만 한 문장에서 두 문장으로 작성
+1. summary는 게시물들의 주요 내용 및 댓글을 분석하고 요약을 한 문장에서 두 문장으로 작성
 2. sentiment는 "긍정", "부정", "중립" 중 하나만 사용
 3. 비속어나 욕설 포함 여부는 언급하지 말 것
 4. 게시물의 형식이나 문법적 특성은 언급하지 말 것
 5. 단순히 내용과 분위기만 객관적으로 분석할 것
+6. summary 작성 시 아래 형식을 따라주세요:
+   - 첫 문장: "[주제/이슈]에 대한 [의견/반응]이 [상태/분위기]를 보이고 있습니다."
+   - 두 번째 문장: "[구체적인 내용/사례]가 [반응/영향]을 주고 있습니다."
+   - "게시물들은", "~에 대해", "~에 관한" 같은 표현은 사용하지 말 것
+   - "현재", "특히" 같은 접속어는 사용하지 말 것
 
 분석할 게시물:
 ${postsText}
