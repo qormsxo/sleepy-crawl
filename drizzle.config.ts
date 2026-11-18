@@ -4,5 +4,5 @@ export default defineConfig({
   dialect: 'postgresql',
   schema: './src/db/schema.ts',
   out: './src/db/migrations',
-  dbCredentials: { url: process.env.DATABASE_URL ?? 'postgres://sleepy:sleepy@localhost:5432/sleepy' },
+  dbCredentials: { url: process.env.DATABASE_URL ?? 'postgres://sleepy:sleepy@localhost:5433/sleepy' },
 });
