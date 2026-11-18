@@ -1,0 +1,10 @@
+@import "tailwindcss";
+
+/* Always-dark "late night" theme; colors come from Tailwind classes in layout.tsx. */
+:root {
+  color-scheme: dark;
+}
+
+body {
+  font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+}
