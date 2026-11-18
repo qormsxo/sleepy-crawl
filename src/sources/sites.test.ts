@@ -4,6 +4,10 @@ import path from 'node:path';
 import type { HttpClient } from '../lib/http';
 import type { ParsedPost, SourceContext } from './types';
 import { getAdapter } from './registry';
+import { clearPageCache } from './html-adapter';
+import { beforeEach } from 'vitest';
+
+beforeEach(() => clearPageCache());
 
 const fixture = (name: string) => fs.readFileSync(path.join(__dirname, 'fixtures', name), 'utf8');
 const NOW = new Date('2026-11-19T10:00:00+09:00');
@@ -176,5 +180,34 @@ describe('list configuration', () => {
 
   it('turns a non-200 list response into an error', async () => {
     await expect(list('inven', ['https://www.inven.co.kr/board/webzine/2097?my=chu'], {})).rejects.toThrow(/404/);
+  });
+});
+
+describe('post page reuse (crawl already opened it)', () => {
+  it('serves a second fetchPost of the same URL from memory, without another request', async () => {
+    const POST = 'https://www.todayhumor.co.kr/board/view.php?table=bestofbest&no=900001';
+    const http = fakeHttp({ [POST]: 'todayhumor-post.html' });
+    const ctx: SourceContext = { http, config: {}, now: NOW, timezone: 'Asia/Seoul' };
+    const a = getAdapter('todayhumor');
+    await a.fetchPost(ctx, { url: POST, externalId: 'bestofbest:900001' });
+    const again = await a.fetchPost(ctx, { url: POST, externalId: 'bestofbest:900001' });
+    expect(http.requested.filter((u) => u === POST)).toHaveLength(1);
+    expect(again.bodyText).toContain('계량컵');
+  });
+});
+
+describe('several lists', () => {
+  it('keeps posts from healthy lists but throws when one list parses to nothing', async () => {
+    const A = 'https://www.todayhumor.co.kr/board/list.php?table=bestofbest';
+    const B = 'https://www.todayhumor.co.kr/board/list.php?table=humorbest';
+    const http = fakeHttp({ [A]: 'todayhumor-list.html', [B]: 'inven-post.html' });
+    const ctx: SourceContext = { http, config: { lists: [A, B] }, now: NOW, timezone: 'Asia/Seoul' };
+    const got: string[] = [];
+    await expect(
+      (async () => {
+        for await (const p of getAdapter('todayhumor').listPopular(ctx)) got.push(p.externalId!);
+      })(),
+    ).rejects.toThrow(/0 posts.*humorbest/);
+    expect(got).toHaveLength(3);
   });
 });

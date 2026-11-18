@@ -6,3 +6,9 @@ describe('queue options', () => {
     expect(['stately', 'singleton']).toContain(QUEUE_OPTIONS.crawl.policy);
   });
 });
+
+describe('evaluate queue', () => {
+  it('dedupes per post so re-enqueueing a stuck post never doubles the work', () => {
+    expect(['stately', 'singleton']).toContain(QUEUE_OPTIONS.evaluate.policy);
+  });
+});

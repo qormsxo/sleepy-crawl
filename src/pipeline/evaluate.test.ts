@@ -155,3 +155,35 @@ describe('evaluatePost re-evaluation', () => {
     expect(p.publishedAt?.toISOString()).toBe(NOW.toISOString());
   });
 });
+
+describe('evaluatePost and blocked sites', () => {
+  it('pauses the source and rethrows when the post page is blocked', async () => {
+    const { HttpBlockedError } = await import('@/lib/http');
+    const id = await postId('1');
+    const blocked = { ...fixtureAdapter, fetchPost: async () => Promise.reject(new HttpBlockedError('https://x/p', 430)) };
+    const llm = createFakeLlm([goodEval()]);
+    await expect(evaluatePost(db, id, { llm, adapter: blocked, now: NOW })).rejects.toThrow(/430/);
+    expect(llm.calls).toBe(0);
+    const [s] = await db.select().from(sources).where(eq(sources.key, 'fixture'));
+    expect(s.pausedUntil?.getTime()).toBe(NOW.getTime() + 60 * 60 * 1000);
+    const [p] = await db.select().from(posts).where(eq(posts.id, id));
+    expect(p.status).toBe('PENDING_EVAL');
+  });
+
+  it('does not touch a paused source: waits instead of judging on the title alone', async () => {
+    const id = await postId('1');
+    await db.update(sources).set({ pausedUntil: new Date(NOW.getTime() + 60_000) }).where(eq(sources.key, 'fixture'));
+    let fetched = false;
+    const spy = { ...fixtureAdapter, fetchPost: async (...a: Parameters<typeof fixtureAdapter.fetchPost>) => { fetched = true; return fixtureAdapter.fetchPost(...a); } };
+    await expect(evaluatePost(db, id, { llm: createFakeLlm([goodEval()]), adapter: spy, now: NOW })).rejects.toThrow(/paused/);
+    expect(fetched).toBe(false);
+  });
+
+  it('recomputes the similar group after filling the preview (titles alone collide)', async () => {
+    const id = await postId('1');
+    await db.update(posts).set({ preview: '', similarGroupId: 'title-only' }).where(eq(posts.id, id));
+    await evaluatePost(db, id, { llm: createFakeLlm([goodEval()]), adapter: fixtureAdapter, now: NOW });
+    const [p] = await db.select().from(posts).where(eq(posts.id, id));
+    expect(p.similarGroupId).not.toBe('title-only');
+  });
+});

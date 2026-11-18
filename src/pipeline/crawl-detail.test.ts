@@ -127,7 +127,8 @@ describe('crawlSource with needsDetail', () => {
     };
     const r = await crawlSource(db, sourceId, { adapter: failing, now: NOW, enqueueEval });
     expect(r.inserted).toBe(1);
-    expect(await db.select().from(seenItems)).toHaveLength(0); // h is retried next run
+    // h is retried next run: only a 'failing' attempt counter is kept, not a final 'seen'.
+    expect(await db.select().from(seenItems)).toMatchObject([{ externalId: 'h', outcome: 'failing', attempts: 1 }]);
   });
 });
 
@@ -138,5 +139,16 @@ describe('per-source page-fetch cap', () => {
     const { adapter, calls } = fakeAdapter(items);
     await crawlSource(db, sourceId, { adapter, now: NOW, enqueueEval });
     expect(calls).toEqual(['p1']);
+  });
+});
+
+describe('permanently failing post pages', () => {
+  it('gives up on a post page after 3 failed runs instead of fetching it forever', async () => {
+    const { adapter } = fakeAdapter([{ id: 'dead', listTime: NOW, realTime: IN_WINDOW, needsDetail: true }]);
+    let fetches = 0;
+    const failing: SourceAdapter = { ...adapter, fetchPost: async () => { fetches++; throw new Error('HTTP 404'); } };
+    for (let i = 0; i < 5; i++) await crawlSource(db, sourceId, { adapter: failing, now: NOW, enqueueEval });
+    expect(fetches).toBe(3);
+    expect(await db.select().from(seenItems)).toMatchObject([{ externalId: 'dead', outcome: 'failed' }]);
   });
 });

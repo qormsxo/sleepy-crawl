@@ -9,6 +9,11 @@ import { logger } from '../lib/logger';
 import { findDueSources } from './scheduler';
 import { evalBudgetResumeAt } from './eval-budget';
 import { QUEUES, QUEUE_OPTIONS } from './queues';
+import { findStuckPending } from './stuck';
+import { posts } from '../db/schema';
+import { eq } from 'drizzle-orm';
+
+const STUCK_AFTER_MIN = 15;
 
 type CrawlJob = { sourceId: number };
 type EvalJob = { postId: number };
@@ -34,7 +39,7 @@ async function main() {
   }
 
   const enqueueEval = async (postId: number) => {
-    await boss.send(QUEUES.evaluate, { postId } satisfies EvalJob, { retryLimit: 3, retryBackoff: true });
+    await boss.send(QUEUES.evaluate, { postId } satisfies EvalJob, { retryLimit: 3, retryBackoff: true, singletonKey: `eval:${postId}` });
   };
 
   await boss.work<CrawlJob>(QUEUES.crawl, async (jobs) => {
@@ -48,11 +53,13 @@ async function main() {
     for (const job of jobs) {
       const resumeAt = await evalBudgetResumeAt(db, new Date());
       if (resumeAt) {
-        await boss.send(QUEUES.evaluate, job.data, { startAfter: resumeAt, retryLimit: 3, retryBackoff: true });
+        await boss.send(QUEUES.evaluate, job.data, { startAfter: resumeAt, retryLimit: 3, retryBackoff: true, singletonKey: `eval:${job.data.postId}` });
         logger.warn({ postId: job.data.postId, resumeAt }, 'daily eval limit reached; deferred');
         continue;
       }
-      // LLM outages throw so pg-boss retries with backoff instead of marking the post failed.
+      const [post] = await db.select({ status: posts.status }).from(posts).where(eq(posts.id, job.data.postId));
+      if (post?.status !== 'PENDING_EVAL') continue; // already handled by an earlier job
+      // LLM outages and source pauses throw so pg-boss retries with backoff instead of marking the post failed.
       const status = await evaluatePost(db, job.data.postId, { llm, rethrowLlmErrors: true });
       logger.info({ postId: job.data.postId, status }, 'evaluated');
     }
@@ -64,7 +71,10 @@ async function main() {
     for (const sourceId of due) {
       await boss.send(QUEUES.crawl, { sourceId } satisfies CrawlJob, { singletonKey: `crawl:${sourceId}` });
     }
-    logger.info({ due }, 'tick');
+    // Jobs can be lost or give up (long outage, source pause): pick their posts up again.
+    const stuck = await findStuckPending(db, new Date(), STUCK_AFTER_MIN);
+    for (const postId of stuck) await enqueueEval(postId);
+    logger.info({ due, requeued: stuck.length }, 'tick');
   });
 
   logger.info('worker started');

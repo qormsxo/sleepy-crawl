@@ -10,7 +10,16 @@ import { getAdapter } from '../sources/registry';
 import type { SourceAdapter } from '../sources/types';
 import type { HttpClient } from '../lib/http';
 import type { LlmClient, LlmResponse } from '../llm/types';
-import { defaultHttpClient } from './crawl';
+import { defaultHttpClient, PAUSE_AFTER_BLOCK_MS } from './crawl';
+import { HttpBlockedError } from '../lib/http';
+import { similarGroupKey } from '../core/dedupe';
+
+export class SourcePausedError extends Error {
+  constructor(sourceKey: string, until: Date) {
+    super(`source ${sourceKey} is paused until ${until.toISOString()}`);
+    this.name = 'SourcePausedError';
+  }
+}
 import { makePreview } from '../core/normalize';
 import { getSetting } from '../lib/settings';
 
@@ -38,6 +47,11 @@ export async function evaluatePost(db: DB, postId: number, deps: EvaluateDeps): 
     .from(keywords)
     .where(and(eq(keywords.kind, 'MEME'), eq(keywords.active, true)));
 
+  // Never touch a host that told us to back off; the queue retries this job later.
+  if (source.pausedUntil && source.pausedUntil > now) {
+    throw new SourcePausedError(source.key, source.pausedUntil);
+  }
+
   // Body and comments are fetched transiently and never stored.
   let body = post.preview;
   let fetchedBody: string | null = null;
@@ -49,8 +63,15 @@ export async function evaluatePost(db: DB, postId: number, deps: EvaluateDeps): 
     fetchedBody = full.bodyText ?? null;
     body = full.bodyText ?? body;
     comments = full.comments ?? [];
-  } catch {
-    // Original unavailable: evaluate from title + preview only.
+  } catch (err) {
+    if (err instanceof HttpBlockedError) {
+      await db
+        .update(sources)
+        .set({ pausedUntil: new Date(now.getTime() + PAUSE_AFTER_BLOCK_MS) })
+        .where(eq(sources.id, source.id));
+      throw err; // retry after the pause rather than judging on the title alone
+    }
+    // Original unavailable (deleted, network error): evaluate from title + preview only.
   }
 
   // List pages often carry no body: fill the card preview from the page fetched for evaluation.
@@ -127,6 +148,8 @@ export async function evaluatePost(db: DB, postId: number, deps: EvaluateDeps): 
       score: ok?.total ?? null,
       categories: ok?.value.categories ?? [],
       preview,
+      // The crawl-time group key may have been built from the title alone (lists carry no body).
+      similarGroupId: post.title.trim() || preview ? similarGroupKey(post.title, preview) : null,
       reason: ok?.value.reason ?? null,
       currentEvaluationId: ev.id,
       // Re-evaluating an already published post must not bump it to the top of "latest".

@@ -1,0 +1,1 @@
+ALTER TABLE "sleepy"."seen_items" ADD COLUMN "attempts" integer DEFAULT 0 NOT NULL;

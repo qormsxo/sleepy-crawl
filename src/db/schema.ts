@@ -207,7 +207,9 @@ export const seenItems = sleepy.table(
       .notNull()
       .references(() => sources.id),
     externalId: text('external_id').notNull(),
+    /** out_of_window | failing (page fetch failed, will retry) | failed (gave up) */
     outcome: text('outcome').notNull(),
+    attempts: integer('attempts').notNull().default(0),
     seenAt: ts('seen_at').notNull().defaultNow(),
   },
   (t) => [uniqueIndex('seen_items_source_external').on(t.sourceId, t.externalId)],

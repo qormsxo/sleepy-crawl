@@ -46,6 +46,34 @@ async function load(ctx: SourceContext, url: string): Promise<CheerioAPI> {
   return cheerio.load(res.text);
 }
 
+/**
+ * Post pages opened during crawling are reused by evaluation in the same worker process, so a site
+ * sees one request per post. Memory only (never persisted), short-lived, bounded.
+ */
+const PAGE_TTL_MS = 30 * 60 * 1000;
+const PAGE_CACHE_MAX = 500;
+const pageCache = new Map<string, { post: ParsedPost; at: number }>();
+
+function cached(url: string): ParsedPost | null {
+  const hit = pageCache.get(url);
+  if (!hit) return null;
+  if (Date.now() - hit.at > PAGE_TTL_MS) {
+    pageCache.delete(url);
+    return null;
+  }
+  return hit.post;
+}
+
+/** Tests only. */
+export function clearPageCache(): void {
+  pageCache.clear();
+}
+
+function remember(url: string, post: ParsedPost): void {
+  if (pageCache.size >= PAGE_CACHE_MAX) pageCache.delete(pageCache.keys().next().value!);
+  pageCache.set(url, { post, at: Date.now() });
+}
+
 export function htmlAdapter(spec: HtmlSiteSpec): SourceAdapter {
   return {
     key: spec.key,
@@ -57,9 +85,12 @@ export function htmlAdapter(spec: HtmlSiteSpec): SourceAdapter {
     },
 
     async *listPopular(ctx) {
+      const empty: string[] = [];
       for (const listUrl of listUrls(ctx, spec.key)) {
         const $ = await load(ctx, listUrl);
-        for (const row of spec.parseList($, ctx.now)) {
+        const rows = spec.parseList($, ctx.now);
+        if (rows.length === 0) empty.push(listUrl);
+        for (const row of rows) {
           const c = spec.canonicalize(row.href, listUrl);
           if (!c) continue;
           yield {
@@ -73,12 +104,16 @@ export function htmlAdapter(spec: HtmlSiteSpec): SourceAdapter {
           } satisfies ParsedPost;
         }
       }
+      // Reported after the healthy lists were yielded, so one broken board doesn't hide the others' posts.
+      if (empty.length) throw new Error(`list parsed to 0 posts: ${empty.join(', ')}`);
     },
 
     async fetchPost(ctx, ref) {
+      const hit = cached(ref.url);
+      if (hit) return hit;
       const $ = await load(ctx, ref.url);
       const page = spec.parsePost($);
-      return {
+      const post: ParsedPost = {
         externalId: ref.externalId,
         url: ref.url,
         title: page.title.replace(/\s+/g, ' ').trim(),
@@ -88,6 +123,8 @@ export function htmlAdapter(spec: HtmlSiteSpec): SourceAdapter {
         precision: page.postedAt ? page.precision : null,
         needsDetail: false,
       };
+      remember(ref.url, post);
+      return post;
     },
   };
 }

@@ -81,3 +81,50 @@ describe('source protection', () => {
     expect((await source()).status).toBe('DISABLED');
   });
 });
+
+describe('pauses are honoured everywhere', () => {
+  it('crawlSource does nothing while the source is paused', async () => {
+    await db.update(sources).set({ pausedUntil: new Date(NOW.getTime() + 60_000) }).where(eq(sources.id, sourceId));
+    let listed = false;
+    const adapter: SourceAdapter = {
+      ...fixtureAdapter,
+      async *listPopular(ctx) {
+        listed = true;
+        yield* fixtureAdapter.listPopular(ctx);
+      },
+    };
+    const r = await crawlSource(db, sourceId, { adapter, now: NOW, enqueueEval });
+    expect(listed).toBe(false);
+    expect(r.found).toBe(0);
+  });
+
+  it('records a run as failed when one of several lists parses to nothing', async () => {
+    const adapter: SourceAdapter = {
+      ...fixtureAdapter,
+      async *listPopular(ctx) {
+        yield* fixtureAdapter.listPopular(ctx);
+        throw new Error('list parsed to 0 posts: https://ex.com/second');
+      },
+    };
+    const r = await crawlSource(db, sourceId, { adapter, now: NOW, enqueueEval });
+    const [run] = await db.select().from(crawlRuns).where(eq(crawlRuns.id, r.runId));
+    expect(run.status).toBe('FAILED');
+    expect(r.inserted).toBeGreaterThan(0); // posts from the healthy list are still kept
+  });
+
+  it('flags a run when most fetched post pages have no readable time (post layout changed)', async () => {
+    const adapter: SourceAdapter = {
+      ...fixtureAdapter,
+      async *listPopular(ctx) {
+        for await (const p of fixtureAdapter.listPopular(ctx)) yield { ...p, needsDetail: true };
+      },
+      async fetchPost(ctx, ref) {
+        return { ...(await fixtureAdapter.fetchPost(ctx, ref)), postedAt: null, precision: null };
+      },
+    };
+    const r = await crawlSource(db, sourceId, { adapter, now: NOW, enqueueEval });
+    const [run] = await db.select().from(crawlRuns).where(eq(crawlRuns.id, r.runId));
+    expect(run.status).toBe('FAILED');
+    expect((await db.select().from(crawlErrors)).some((e) => e.kind === 'post_layout')).toBe(true);
+  });
+});

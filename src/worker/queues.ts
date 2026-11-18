@@ -8,5 +8,6 @@ export const QUEUES = { tick: 'tick', crawl: 'crawl', evaluate: 'evaluate' } as 
 export const QUEUE_OPTIONS = {
   tick: { policy: 'standard' },
   crawl: { policy: 'stately' },
-  evaluate: { policy: 'standard' },
+  // One queued + one active job per post (singletonKey eval:<postId>), so re-enqueueing stuck posts is safe.
+  evaluate: { policy: 'stately' },
 } as const;

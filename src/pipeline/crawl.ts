@@ -1,4 +1,4 @@
-import { and, eq, gte, isNull, lte, or } from 'drizzle-orm';
+import { and, eq, gte, isNull, lte, or, sql } from 'drizzle-orm';
 import type { DB } from '../db/client';
 import { crawlErrors, crawlRuns, keywords, postDiscoveries, posts, seenItems, sources } from '../db/schema';
 import { getAdapter } from '../sources/registry';
@@ -48,6 +48,10 @@ export async function crawlSource(db: DB, sourceId: number, deps: CrawlDeps): Pr
   if (!source) throw new Error(`source ${sourceId} not found`);
   const tz = source.timezone;
   const http = deps.http ?? defaultHttpClient();
+  // A queued job or a manual run must not reach a host that told us to back off.
+  if (source.pausedUntil && source.pausedUntil > now) {
+    return { runId: 0, found: 0, inserted: 0, skippedOutOfWindow: 0, deferred: 0 };
+  }
 
   const [run] = await db.insert(crawlRuns).values({ sourceId }).returning({ id: crawlRuns.id });
   const result: CrawlResult = { runId: run.id, found: 0, inserted: 0, skippedOutOfWindow: 0, deferred: 0 };
@@ -79,6 +83,7 @@ export async function crawlSource(db: DB, sourceId: number, deps: CrawlDeps): Pr
     const configured = (source.config as { maxDetailFetches?: unknown }).maxDetailFetches;
     const maxDetail = typeof configured === 'number' ? configured : await getSetting(db, 'max_detail_fetches_per_run', 20);
     let detailFetches = 0;
+    let untimedPages = 0;
 
     for await (const listed of adapter.listPopular(ctx)) {
       result.found++;
@@ -97,7 +102,16 @@ export async function crawlSource(db: DB, sourceId: number, deps: CrawlDeps): Pr
             continue;
           }
           detailFetches++;
-          const full = await adapter.fetchPost(ctx, { url: item.url, externalId: item.externalId });
+          let full;
+          try {
+            full = await adapter.fetchPost(ctx, { url: item.url, externalId: item.externalId });
+          } catch (err) {
+            if (err instanceof HttpBlockedError) throw err;
+            // Deleted post, disallowed URL, parse error...: give up after a few runs instead of retrying forever.
+            if (item.externalId) await notePageFailure(db, source.id, item.externalId);
+            throw err;
+          }
+          if (!full.postedAt) untimedPages++;
           item = {
             ...item,
             title: full.title.trim() || item.title,
@@ -112,7 +126,10 @@ export async function crawlSource(db: DB, sourceId: number, deps: CrawlDeps): Pr
         if (stored === 'out_of_window') {
           result.skippedOutOfWindow++;
           if (item.externalId) {
-            await db.insert(seenItems).values({ sourceId: source.id, externalId: item.externalId, outcome: 'out_of_window' }).onConflictDoNothing();
+            await db
+              .insert(seenItems)
+              .values({ sourceId: source.id, externalId: item.externalId, outcome: 'out_of_window' })
+              .onConflictDoUpdate({ target: [seenItems.sourceId, seenItems.externalId], set: { outcome: 'out_of_window' } });
           }
         } else if (stored.isNew) {
           result.inserted++;
@@ -122,6 +139,11 @@ export async function crawlSource(db: DB, sourceId: number, deps: CrawlDeps): Pr
         if (err instanceof HttpBlockedError) throw err; // the site is pushing back: stop this run
         await recordError('item', errMessage(err), listed.url);
       }
+    }
+    if (detailFetches >= 3 && untimedPages * 2 > detailFetches) {
+      // Pages load but their time can't be read: the post page layout probably changed.
+      failure = `${untimedPages}/${detailFetches} post pages had no readable time`;
+      await recordError('post_layout', failure);
     }
     if (result.found === 0) {
       // A list that used to have posts now parses to nothing: almost always a layout change.
@@ -189,10 +211,26 @@ async function lookupKnown(
     .where(and(eq(posts.sourceId, sourceId), eq(posts.externalId, externalId)));
   if (p) return { kind: 'post', postId: p.id };
   const [s] = await db
-    .select({ id: seenItems.externalId })
+    .select({ outcome: seenItems.outcome })
     .from(seenItems)
     .where(and(eq(seenItems.sourceId, sourceId), eq(seenItems.externalId, externalId)));
-  return s ? { kind: 'seen' } : null;
+  return s && s.outcome !== 'failing' ? { kind: 'seen' } : null;
+}
+
+export const MAX_PAGE_ATTEMPTS = 3;
+
+/** Count a failed post-page fetch; after MAX_PAGE_ATTEMPTS the item is marked seen ('failed') and never fetched again. */
+async function notePageFailure(db: DB, sourceId: number, externalId: string): Promise<void> {
+  await db
+    .insert(seenItems)
+    .values({ sourceId, externalId, outcome: MAX_PAGE_ATTEMPTS <= 1 ? 'failed' : 'failing', attempts: 1 })
+    .onConflictDoUpdate({
+      target: [seenItems.sourceId, seenItems.externalId],
+      set: {
+        attempts: sql`${seenItems.attempts} + 1`,
+        outcome: sql`case when ${seenItems.attempts} + 1 >= ${MAX_PAGE_ATTEMPTS} then 'failed' else 'failing' end`,
+      },
+    });
 }
 
 type StoreArgs = {
