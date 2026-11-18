@@ -54,3 +54,27 @@ describe('dueSources with protection', () => {
     expect(dueSources(kst('23:05'), [src({ status: 'DEGRADED' })], new Map(), 10)).toEqual([1]);
   });
 });
+
+describe('dueSources follow-up window (popular lists lag hours behind)', () => {
+  const day = '2026-11-19';
+  const followup = { untilHour: 15, intervalMin: 30 };
+
+  it('uses the night interval inside 23:00–02:59', () => {
+    expect(dueSources(kst('02:59', day), [src()], new Map([[1, kst('02:48', day)]]), 10, followup)).toEqual([1]);
+  });
+
+  it('uses the follow-up interval from 03:00 until untilHour', () => {
+    expect(dueSources(kst('03:10', day), [src()], new Map([[1, kst('02:50', day)]]), 10, followup)).toEqual([]);
+    expect(dueSources(kst('03:20', day), [src()], new Map([[1, kst('02:50', day)]]), 10, followup)).toEqual([1]);
+    expect(dueSources(kst('14:59', day), [src()], new Map([[1, kst('14:20', day)]]), 10, followup)).toEqual([1]);
+  });
+
+  it('stops at untilHour', () => {
+    expect(dueSources(kst('15:00', day), [src()], new Map(), 10, followup)).toEqual([]);
+    expect(dueSources(kst('22:30', day), [src()], new Map(), 10, followup)).toEqual([]);
+  });
+
+  it('has no follow-up when untilHour is 3', () => {
+    expect(dueSources(kst('03:30', day), [src()], new Map(), 10, { untilHour: 3, intervalMin: 30 })).toEqual([]);
+  });
+});
