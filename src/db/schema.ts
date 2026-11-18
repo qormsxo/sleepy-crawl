@@ -10,6 +10,7 @@ import {
   date,
   smallint,
   uniqueIndex,
+  unique,
   index,
 } from 'drizzle-orm/pg-core';
 import { CATEGORIES, COLLECTION_PATHS, KEYWORD_KINDS, POST_STATUSES, SOURCE_STATUSES } from '../core/constants';
@@ -142,17 +143,22 @@ export const posts = pgTable(
   ],
 );
 
-export const postDiscoveries = pgTable('post_discoveries', {
-  id: serial('id').primaryKey(),
-  postId: integer('post_id')
-    .notNull()
-    .references(() => posts.id),
-  path: collectionPath('path').notNull(),
-  keywordId: integer('keyword_id').references(() => keywords.id),
-  crawlRunId: integer('crawl_run_id').references(() => crawlRuns.id),
-  submissionId: integer('submission_id'),
-  discoveredAt: ts('discovered_at').notNull().defaultNow(),
-});
+export const postDiscoveries = pgTable(
+  'post_discoveries',
+  {
+    id: serial('id').primaryKey(),
+    postId: integer('post_id')
+      .notNull()
+      .references(() => posts.id),
+    path: collectionPath('path').notNull(),
+    keywordId: integer('keyword_id').references(() => keywords.id),
+    crawlRunId: integer('crawl_run_id').references(() => crawlRuns.id),
+    submissionId: integer('submission_id'),
+    discoveredAt: ts('discovered_at').notNull().defaultNow(),
+  },
+  // One row per (post, route, keyword): re-seeing a post on the same route must not inflate route stats.
+  (t) => [unique('post_discoveries_route').on(t.postId, t.path, t.keywordId).nullsNotDistinct()],
+);
 
 export const evaluations = pgTable('evaluations', {
   id: serial('id').primaryKey(),

@@ -75,7 +75,8 @@ CREATE TABLE "post_discoveries" (
 	"keyword_id" integer,
 	"crawl_run_id" integer,
 	"submission_id" integer,
-	"discovered_at" timestamp with time zone DEFAULT now() NOT NULL
+	"discovered_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "post_discoveries_route" UNIQUE NULLS NOT DISTINCT("post_id","path","keyword_id")
 );
 --> statement-breakpoint
 CREATE TABLE "posts" (

@@ -1,5 +1,5 @@
 {
-  "id": "e84bd0bf-6082-4502-84af-cf5607d73cee",
+  "id": "f610db75-2861-4a17-ab25-60bb546006ea",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -545,7 +545,17 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "post_discoveries_route": {
+          "name": "post_discoveries_route",
+          "nullsNotDistinct": true,
+          "columns": [
+            "post_id",
+            "path",
+            "keyword_id"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
