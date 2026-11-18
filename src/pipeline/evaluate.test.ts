@@ -108,3 +108,20 @@ describe('evaluatePost', () => {
     expect(await evaluatePost(db, id, { llm: createFakeLlm([goodEval()]), adapter: failing, now: NOW })).toBe('PUBLISHED');
   });
 });
+
+describe('evaluatePost with rethrowLlmErrors', () => {
+  it('rethrows LLM outages so the queue can retry, leaving the post pending', async () => {
+    const id = await postId('1');
+    const llm = createFakeLlm([new Error('503'), new Error('503')]);
+    await expect(evaluatePost(db, id, { llm, adapter: fixtureAdapter, now: NOW, rethrowLlmErrors: true })).rejects.toThrow('503');
+    const [p] = await db.select().from(posts).where(eq(posts.id, id));
+    expect(p.status).toBe('PENDING_EVAL');
+    expect(await db.select().from(evaluations).where(eq(evaluations.postId, id))).toHaveLength(0);
+  });
+
+  it('still records validation failures as EVAL_FAILED (retrying will not help)', async () => {
+    const id = await postId('1');
+    const llm = createFakeLlm([{ bad: 1 }, { bad: 2 }]);
+    expect(await evaluatePost(db, id, { llm, adapter: fixtureAdapter, now: NOW, rethrowLlmErrors: true })).toBe('EVAL_FAILED');
+  });
+});

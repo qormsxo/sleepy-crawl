@@ -107,3 +107,10 @@ describe('crawlSource', () => {
     expect(p4.matchedKeywords).toEqual([]);
   });
 });
+
+describe('defaultHttpClient', () => {
+  it('is shared per process so robots cache and host spacing apply across calls', async () => {
+    const { defaultHttpClient } = await import('./crawl');
+    expect(defaultHttpClient()).toBe(defaultHttpClient());
+  });
+});

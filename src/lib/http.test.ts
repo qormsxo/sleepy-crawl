@@ -111,3 +111,24 @@ describe('createHttpClient', () => {
     expect(ua).toBe('SleepyCrawlerBot/1.0');
   });
 });
+
+describe('robots.txt failures and redirects', () => {
+  it.each([503, 500, 429])('treats robots.txt HTTP %s as disallow-all', async (status) => {
+    const f = fakeFetch((u) => (u.endsWith('/robots.txt') ? { status } : { status: 200, body: 'ok' }));
+    const c = clock();
+    const http = createHttpClient({ ...base, fetchImpl: f.impl, now: c.now, sleep: c.sleep });
+    await expect(http.get('https://ex.com/best')).rejects.toBeInstanceOf(RobotsDisallowedError);
+  });
+
+  it('checks robots.txt for the redirect target', async () => {
+    const impl = (async (input: string | URL | Request) => {
+      const u = String(input);
+      if (u.endsWith('/robots.txt')) return new Response('User-agent: *\nDisallow: /private\n', { status: 200 });
+      if (u.endsWith('/go')) return new Response('', { status: 302, headers: { location: '/private/x' } });
+      return new Response('secret', { status: 200 });
+    }) as typeof fetch;
+    const c = clock();
+    const http = createHttpClient({ ...base, fetchImpl: impl, now: c.now, sleep: c.sleep });
+    await expect(http.get('https://ex.com/go')).rejects.toBeInstanceOf(RobotsDisallowedError);
+  });
+});

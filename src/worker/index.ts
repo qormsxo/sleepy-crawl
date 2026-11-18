@@ -7,8 +7,8 @@ import { createLlmClient } from '../llm';
 import { logger } from '../lib/logger';
 import { findDueSources } from './scheduler';
 import { evalBudgetResumeAt } from './eval-budget';
+import { QUEUES, QUEUE_OPTIONS } from './queues';
 
-export const QUEUES = { tick: 'tick', crawl: 'crawl', evaluate: 'evaluate' } as const;
 type CrawlJob = { sourceId: number };
 type EvalJob = { postId: number };
 
@@ -21,7 +21,17 @@ async function main() {
   boss.on('error', (err) => logger.error({ err }, 'pg-boss error'));
   await boss.start();
 
-  for (const name of Object.values(QUEUES)) await boss.createQueue(name);
+  for (const name of Object.values(QUEUES)) {
+    await boss.createQueue(name, QUEUE_OPTIONS[name]);
+    // createQueue leaves an existing queue untouched and policy can't be updated: fail loudly on drift.
+    const queue = await boss.getQueue(name);
+    if (queue?.policy !== QUEUE_OPTIONS[name].policy) {
+      throw new Error(
+        `queue "${name}" has policy "${queue?.policy}", expected "${QUEUE_OPTIONS[name].policy}". ` +
+          `Drain it and delete it (boss.deleteQueue) so it is recreated.`,
+      );
+    }
+  }
 
   const enqueueEval = async (postId: number) => {
     await boss.send(QUEUES.evaluate, { postId } satisfies EvalJob, { retryLimit: 3, retryBackoff: true });
@@ -42,7 +52,8 @@ async function main() {
         logger.warn({ postId: job.data.postId, resumeAt }, 'daily eval limit reached; deferred');
         continue;
       }
-      const status = await evaluatePost(db, job.data.postId, { llm });
+      // LLM outages throw so pg-boss retries with backoff instead of marking the post failed.
+      const status = await evaluatePost(db, job.data.postId, { llm, rethrowLlmErrors: true });
       logger.info({ postId: job.data.postId, status }, 'evaluated');
     }
   });

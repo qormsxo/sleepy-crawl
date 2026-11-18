@@ -31,7 +31,7 @@ export function simhash64(text: string): bigint {
   return out;
 }
 
-/** Coarse bucket for "similar content" grouping: top 16 bits of the SimHash, hex. */
+/** Group key for near-identical content: the full 64-bit SimHash, hex (texts equal after normalization share it). */
 export function similarGroupKey(title: string, preview: string): string {
-  return (simhash64(`${title} ${preview}`) >> 48n).toString(16).padStart(4, '0');
+  return simhash64(`${title} ${preview}`).toString(16).padStart(16, '0');
 }

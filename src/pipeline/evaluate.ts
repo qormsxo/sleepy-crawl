@@ -12,7 +12,14 @@ import type { HttpClient } from '../lib/http';
 import type { LlmClient, LlmResponse } from '../llm/types';
 import { defaultHttpClient } from './crawl';
 
-export type EvaluateDeps = { llm: LlmClient; adapter?: SourceAdapter; http?: HttpClient; now?: Date };
+export type EvaluateDeps = {
+  llm: LlmClient;
+  adapter?: SourceAdapter;
+  http?: HttpClient;
+  now?: Date;
+  /** Queue workers set this: an LLM outage is rethrown (post stays PENDING_EVAL) so the job retries with backoff. */
+  rethrowLlmErrors?: boolean;
+};
 
 /** Evaluate one post with the active prompt version and apply the publish rules. */
 export async function evaluatePost(db: DB, postId: number, deps: EvaluateDeps): Promise<PostStatus> {
@@ -52,23 +59,31 @@ export async function evaluatePost(db: DB, postId: number, deps: EvaluateDeps): 
   let response: LlmResponse | null = null;
   let validation: ValidationResult | null = null;
   let error = '';
+  let llmError: unknown = null;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       response = await deps.llm.evaluate({ system, user, jsonSchema: evaluationJsonSchema() });
       validation = validateEvaluation(response.raw, weights);
+      llmError = null;
       if (validation.ok) break;
       error = validation.error;
     } catch (err) {
+      llmError = err;
       error = err instanceof Error ? err.message : String(err);
       validation = null;
     }
   }
+
+  if (llmError && deps.rethrowLlmErrors) throw llmError;
 
   const ok = validation?.ok ? validation : null;
   const status = decideStatus({
     evaluation: ok?.value ?? null,
     total: ok?.total ?? null,
     hasPostedAt: post.postedAt !== null,
+    posted: post.postedAt
+      ? { at: post.postedAt, precision: post.postedAtPrecision, timezone: post.sourceTimezone }
+      : undefined,
     hasTitleOrPreview: post.title.trim() !== '' || post.preview.trim() !== '',
     thresholds: prompt.thresholds,
   });

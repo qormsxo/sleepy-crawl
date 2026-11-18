@@ -42,6 +42,13 @@ function decode(s: string): Cursor | null {
 export async function listFeed(db: DB, f: FeedFilters): Promise<{ items: FeedItem[]; nextCursor: string | null }> {
   const limit = Math.min(Math.max(f.limit ?? 20, 1), 50);
 
+  // The same filters apply to the group mate, so a filtered view never hides a post behind a mate it excludes.
+  const mateFilters: SQL[] = [];
+  if (f.date) mateFilters.push(sql`and o.night_date = ${f.date}`);
+  if (f.hour !== undefined) mateFilters.push(sql`and o.night_hour = ${f.hour}`);
+  if (f.category) mateFilters.push(sql`and ${f.category} = any(o.categories)`);
+  if (f.source) mateFilters.push(sql`and o.source_id = ${posts.sourceId}`);
+
   const conds: SQL[] = [
     eq(posts.status, 'PUBLISHED'),
     // Inner table gets an explicit SQL alias (o); ${posts.*} columns render as the outer "posts" row.
@@ -51,6 +58,7 @@ export async function listFeed(db: DB, f: FeedFilters): Promise<{ items: FeedIte
         and o.similar_group_id = ${posts.similarGroupId}
         and (coalesce(o.score, 0) > coalesce(${posts.score}, 0)
              or (coalesce(o.score, 0) = coalesce(${posts.score}, 0) and o.id < ${posts.id}))
+        ${sql.join(mateFilters, sql` `)}
     )`,
   ];
   if (f.date) conds.push(eq(posts.nightDate, f.date));

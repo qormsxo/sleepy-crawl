@@ -33,6 +33,9 @@ export type HttpClientOptions = {
 
 type RobotsRules = { allow: string[]; disallow: string[] };
 const ROBOTS_TTL_MS = 24 * 60 * 60 * 1000;
+/** Shorter cache when robots.txt itself failed, so a transient outage doesn't pause a source for a day. */
+const ROBOTS_ERROR_TTL_MS = 60 * 60 * 1000;
+const MAX_REDIRECTS = 3;
 
 /** Minimal robots.txt parser: groups for `*` and our UA token, Allow/Disallow prefixes. */
 export function parseRobots(body: string, userAgent: string): RobotsRules {
@@ -91,10 +94,10 @@ export function createHttpClient(opts: HttpClientOptions): HttpClient {
   const now = opts.now ?? Date.now;
   const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   const lastRequestAt = new Map<string, number>();
-  const robotsCache = new Map<string, { rules: RobotsRules; fetchedAt: number }>();
+  const robotsCache = new Map<string, { rules: RobotsRules; expiresAt: number }>();
   let requestCount = 0;
 
-  async function rawGet(url: string): Promise<Response> {
+  async function rawGet(url: string, redirect: RequestRedirect = 'manual'): Promise<Response> {
     const host = new URL(url).host;
     const last = lastRequestAt.get(host);
     if (last !== undefined) {
@@ -106,23 +109,30 @@ export function createHttpClient(opts: HttpClientOptions): HttpClient {
     return fetchImpl(url, {
       headers: { 'user-agent': opts.userAgent },
       signal: AbortSignal.timeout(opts.timeoutMs),
-      redirect: 'follow',
+      redirect,
     });
   }
 
   async function robotsFor(origin: string): Promise<RobotsRules> {
     const cached = robotsCache.get(origin);
-    if (cached && now() - cached.fetchedAt < ROBOTS_TTL_MS) return cached.rules;
+    if (cached && now() < cached.expiresAt) return cached.rules;
+    const DENY_ALL: RobotsRules = { allow: [], disallow: ['/'] };
     let rules: RobotsRules = { allow: [], disallow: [] };
+    let ttl = ROBOTS_TTL_MS;
     try {
-      const res = await rawGet(`${origin}/robots.txt`);
+      // RFC 9309: follow redirects for robots.txt; 4xx = no rules; 5xx/429/unreachable = assume full disallow.
+      const res = await rawGet(`${origin}/robots.txt`, 'follow');
       if (res.status === 200) rules = parseRobots(await res.text(), opts.userAgent);
-      else if (res.status === 401 || res.status === 403) rules = { allow: [], disallow: ['/'] };
+      else if (res.status === 401 || res.status === 403) rules = DENY_ALL;
+      else if (res.status === 429 || res.status >= 500) {
+        rules = DENY_ALL;
+        ttl = ROBOTS_ERROR_TTL_MS;
+      }
     } catch {
-      // Unreachable robots.txt: be conservative and refuse the whole host this round.
-      rules = { allow: [], disallow: ['/'] };
+      rules = DENY_ALL;
+      ttl = ROBOTS_ERROR_TTL_MS;
     }
-    robotsCache.set(origin, { rules, fetchedAt: now() });
+    robotsCache.set(origin, { rules, expiresAt: now() + ttl });
     return rules;
   }
 
@@ -131,6 +141,12 @@ export function createHttpClient(opts: HttpClientOptions): HttpClient {
       return requestCount;
     },
     async get(url: string) {
+      return getChecked(url, 0);
+    },
+  };
+
+  /** Every hop, including redirect targets, passes the robots.txt check. */
+  async function getChecked(url: string, hops: number): Promise<{ status: number; text: string }> {
       const u = new URL(url);
       const rules = await robotsFor(u.origin);
       if (!isAllowed(rules, u.pathname + u.search)) throw new RobotsDisallowedError(url);
@@ -141,17 +157,21 @@ export function createHttpClient(opts: HttpClientOptions): HttpClient {
         try {
           const res = await rawGet(url);
           if (res.status === 429 || res.status === 403) throw new HttpBlockedError(url, res.status);
+          const location = res.headers.get('location');
+          if (res.status >= 300 && res.status < 400 && location) {
+            if (hops >= MAX_REDIRECTS) throw new Error(`too many redirects: ${url}`);
+            return getChecked(new URL(location, url).toString(), hops + 1);
+          }
           if (res.status >= 500) {
             lastError = new Error(`HTTP ${res.status}: ${url}`);
             continue;
           }
           return { status: res.status, text: await res.text() };
         } catch (err) {
-          if (err instanceof HttpBlockedError) throw err;
+          if (err instanceof HttpBlockedError || err instanceof RobotsDisallowedError) throw err;
           lastError = err;
         }
       }
       throw lastError;
-    },
-  };
+  }
 }

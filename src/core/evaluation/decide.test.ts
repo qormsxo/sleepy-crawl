@@ -44,3 +44,17 @@ describe('decideStatus', () => {
     expect(decideStatus({ ...base, thresholds: { publish: 80, review: 60 }, evaluation: ev(), total: 75 })).toBe('REVIEW');
   });
 });
+
+describe('decideStatus with approximate times', () => {
+  const near = new Date('2026-11-18T14:05:00Z'); // KST 23:05
+  const mid = new Date('2026-11-18T16:00:00Z'); // KST 01:00
+  it('reviews an approximate time near a window boundary', () => {
+    expect(decideStatus({ ...base, evaluation: ev(), total: 90, posted: { at: near, precision: 'approximate', timezone: 'Asia/Seoul' } })).toBe('REVIEW');
+  });
+  it('publishes an approximate time well inside the window', () => {
+    expect(decideStatus({ ...base, evaluation: ev(), total: 90, posted: { at: mid, precision: 'approximate', timezone: 'Asia/Seoul' } })).toBe('PUBLISHED');
+  });
+  it('publishes an exact time near the boundary', () => {
+    expect(decideStatus({ ...base, evaluation: ev(), total: 90, posted: { at: near, precision: 'exact', timezone: 'Asia/Seoul' } })).toBe('PUBLISHED');
+  });
+});

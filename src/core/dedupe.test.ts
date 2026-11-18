@@ -21,3 +21,9 @@ describe('similarGroupKey', () => {
     expect(h < 1n << 64n).toBe(true);
   });
 });
+
+describe('similarGroupKey width', () => {
+  it('uses the full 64-bit hash (16 hex chars) so unrelated posts rarely collide', () => {
+    expect(similarGroupKey('아무 제목', '아무 미리보기')).toMatch(/^[0-9a-f]{16}$/);
+  });
+});

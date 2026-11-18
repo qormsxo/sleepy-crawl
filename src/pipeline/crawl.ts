@@ -12,8 +12,12 @@ import { isInNightWindow, localParts, nightDate, nightHour } from '../core/time-
 
 export const USER_AGENT = 'SleepyCrawlerBot/1.0';
 
+let sharedHttp: HttpClient | null = null;
+
+/** One client per process: robots.txt cache and per-host spacing must span every crawl and evaluation. */
 export function defaultHttpClient(): HttpClient {
-  return createHttpClient({ userAgent: USER_AGENT, minIntervalMs: 3000, timeoutMs: 10_000, maxRetries: 3 });
+  sharedHttp ??= createHttpClient({ userAgent: USER_AGENT, minIntervalMs: 3000, timeoutMs: 10_000, maxRetries: 3 });
+  return sharedHttp;
 }
 
 export type CrawlDeps = {

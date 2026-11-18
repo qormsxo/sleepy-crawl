@@ -45,3 +45,11 @@ export function nightDate(t: Date, tz: string): string | null {
   const base = new Date(Date.UTC(y, m - 1, hour === 23 ? d : d - 1));
   return base.toISOString().slice(0, 10);
 }
+
+/** True when local time is within `minutes` of the window edges (23:00 or 03:00). */
+export function nearWindowBoundary(t: Date, tz: string, minutes: number): boolean {
+  const { hour, minute } = localParts(t, tz);
+  const m = hour * 60 + minute;
+  const dist = (edge: number) => Math.min(Math.abs(m - edge), 1440 - Math.abs(m - edge));
+  return dist(23 * 60) <= minutes || dist(3 * 60) <= minutes;
+}

@@ -44,3 +44,14 @@ describe('time-window (other time zones)', () => {
     expect(localParts(new Date('2026-11-18T15:05:00Z'), KST)).toEqual({ y: 2026, m: 11, d: 19, hour: 0, minute: 5 });
   });
 });
+
+describe('nearWindowBoundary', () => {
+  it('is true within 10 minutes of 23:00 or 03:00 local, false elsewhere', async () => {
+    const { nearWindowBoundary } = await import('./time-window');
+    expect(nearWindowBoundary(new Date('2026-11-18T13:55:00Z'), KST, 10)).toBe(true); // 22:55
+    expect(nearWindowBoundary(new Date('2026-11-18T14:09:00Z'), KST, 10)).toBe(true); // 23:09
+    expect(nearWindowBoundary(new Date('2026-11-18T17:52:00Z'), KST, 10)).toBe(true); // 02:52
+    expect(nearWindowBoundary(new Date('2026-11-18T16:00:00Z'), KST, 10)).toBe(false); // 01:00
+    expect(nearWindowBoundary(new Date('2026-11-18T14:11:00Z'), KST, 10)).toBe(false); // 23:11
+  });
+});

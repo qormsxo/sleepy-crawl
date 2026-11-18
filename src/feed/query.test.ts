@@ -109,3 +109,12 @@ describe('parseFeedFilters', () => {
     });
   });
 });
+
+describe('listFeed grouping under filters', () => {
+  it('shows a group member when its higher-scored mate is filtered out', async () => {
+    await add(1, { group: 'same', score: 90, categories: ['MEME'] });
+    await add(2, { group: 'same', score: 70, categories: ['ABSURD'] });
+    const { items } = await listFeed(db, { sort: 'latest', category: 'ABSURD' });
+    expect(items.map((i) => i.title)).toEqual(['글 2']);
+  });
+});
