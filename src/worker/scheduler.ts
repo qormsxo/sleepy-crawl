@@ -4,7 +4,13 @@ import { crawlRuns, sources } from '../db/schema';
 import { isInNightWindow } from '../core/time-window';
 import { getSetting } from '../lib/settings';
 
-export type SchedulableSource = { id: number; status: string; timezone: string; intervalOverride: number | null };
+export type SchedulableSource = {
+  id: number;
+  status: string;
+  timezone: string;
+  intervalOverride: number | null;
+  pausedUntil?: Date | null;
+};
 
 /** Sources whose local night window is open and whose interval has elapsed since their last run. */
 export function dueSources(
@@ -14,7 +20,9 @@ export function dueSources(
   defaultIntervalMin: number,
 ): number[] {
   return list
-    .filter((s) => s.status === 'ACTIVE' && isInNightWindow(now, s.timezone))
+    // DEGRADED sources keep being tried so they can recover; paused ones wait out their pause.
+    .filter((s) => (s.status === 'ACTIVE' || s.status === 'DEGRADED') && !(s.pausedUntil && s.pausedUntil > now))
+    .filter((s) => isInNightWindow(now, s.timezone))
     .filter((s) => {
       const last = lastRunAt.get(s.id);
       const intervalMs = (s.intervalOverride ?? defaultIntervalMin) * 60_000;

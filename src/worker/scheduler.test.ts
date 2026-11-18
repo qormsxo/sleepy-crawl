@@ -42,3 +42,15 @@ describe('dueSources', () => {
     expect(dueSources(kst('23:05'), [src({ intervalOverride: 5 })], last, 10)).toEqual([1]);
   });
 });
+
+describe('dueSources with protection', () => {
+  it('skips a paused source until the pause ends', () => {
+    const paused = src({ pausedUntil: kst('23:30') });
+    expect(dueSources(kst('23:05'), [paused], new Map(), 10)).toEqual([]);
+    expect(dueSources(kst('23:31'), [paused], new Map(), 10)).toEqual([1]);
+  });
+
+  it('keeps retrying DEGRADED sources so they can recover', () => {
+    expect(dueSources(kst('23:05'), [src({ status: 'DEGRADED' })], new Map(), 10)).toEqual([1]);
+  });
+});

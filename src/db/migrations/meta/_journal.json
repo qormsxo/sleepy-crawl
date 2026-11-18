@@ -15,6 +15,13 @@
       "when": 1795011032329,
       "tag": "0001_seen_items",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795012130946,
+      "tag": "0002_source_health",
+      "breakpoints": true
     }
   ]
 }

@@ -45,6 +45,9 @@ export const sources = sleepy.table('sources', {
   timezone: text('timezone').notNull().default('Asia/Seoul'),
   intervalOverride: integer('interval_override'),
   allowBodyStorage: boolean('allow_body_storage').notNull().default(false),
+  /** Set after a 403/429: the scheduler skips the source until then. */
+  pausedUntil: ts('paused_until'),
+  consecutiveFailures: integer('consecutive_failures').notNull().default(0),
   createdAt: ts('created_at').notNull().defaultNow(),
 });
 

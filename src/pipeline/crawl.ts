@@ -3,7 +3,7 @@ import type { DB } from '../db/client';
 import { crawlErrors, crawlRuns, keywords, postDiscoveries, posts, seenItems, sources } from '../db/schema';
 import { getAdapter } from '../sources/registry';
 import type { ParsedPost, SourceAdapter } from '../sources/types';
-import { createHttpClient, type HttpClient } from '../lib/http';
+import { createHttpClient, HttpBlockedError, type HttpClient } from '../lib/http';
 import { getSetting } from '../lib/settings';
 import { canonicalizeUrl, makePreview } from '../core/normalize';
 import { similarGroupKey } from '../core/dedupe';
@@ -53,6 +53,7 @@ export async function crawlSource(db: DB, sourceId: number, deps: CrawlDeps): Pr
   const result: CrawlResult = { runId: run.id, found: 0, inserted: 0, skippedOutOfWindow: 0, deferred: 0 };
   let errorCount = 0;
   let failure: string | null = null;
+  let blocked = false;
 
   const recordError = async (kind: string, message: string, url?: string) => {
     errorCount++;
@@ -116,13 +117,22 @@ export async function crawlSource(db: DB, sourceId: number, deps: CrawlDeps): Pr
           await deps.enqueueEval(stored.postId);
         }
       } catch (err) {
+        if (err instanceof HttpBlockedError) throw err; // the site is pushing back: stop this run
         await recordError('item', errMessage(err), listed.url);
       }
+    }
+    if (result.found === 0) {
+      // A list that used to have posts now parses to nothing: almost always a layout change.
+      failure = 'list parsed to 0 posts';
+      await recordError('empty_list', failure);
     }
   } catch (err) {
     failure = errMessage(err);
     await recordError(err instanceof Error ? err.name : 'error', failure);
+    if (err instanceof HttpBlockedError) blocked = true;
   }
+
+  await updateSourceHealth(db, source, { failed: failure !== null, blocked, now });
 
   await db
     .update(crawlRuns)
@@ -137,6 +147,33 @@ export async function crawlSource(db: DB, sourceId: number, deps: CrawlDeps): Pr
     })
     .where(eq(crawlRuns.id, run.id));
   return result;
+}
+
+export const PAUSE_AFTER_BLOCK_MS = 60 * 60 * 1000;
+export const DEGRADE_AFTER_FAILURES = 5;
+
+/** Failure streaks mark a source DEGRADED; a success heals it. Admin-set statuses are never overridden. */
+async function updateSourceHealth(
+  db: DB,
+  source: typeof sources.$inferSelect,
+  r: { failed: boolean; blocked: boolean; now: Date },
+): Promise<void> {
+  if (!r.failed) {
+    await db
+      .update(sources)
+      .set({ consecutiveFailures: 0, ...(source.status === 'DEGRADED' ? { status: 'ACTIVE' as const } : {}) })
+      .where(eq(sources.id, source.id));
+    return;
+  }
+  const failures = source.consecutiveFailures + 1;
+  await db
+    .update(sources)
+    .set({
+      consecutiveFailures: failures,
+      ...(r.blocked ? { pausedUntil: new Date(r.now.getTime() + PAUSE_AFTER_BLOCK_MS) } : {}),
+      ...(failures >= DEGRADE_AFTER_FAILURES && source.status === 'ACTIVE' ? { status: 'DEGRADED' as const } : {}),
+    })
+    .where(eq(sources.id, source.id));
 }
 
 async function lookupKnown(
