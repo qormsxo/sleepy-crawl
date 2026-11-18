@@ -8,7 +8,8 @@ describe('schema isolation (DB is shared with another app)', () => {
     const db = await createTestDb();
     const enums = await db.execute(sql`select n.nspname as ns from pg_type t join pg_namespace n on n.oid = t.typnamespace where t.typtype = 'e'`);
     const tables = await db.execute(sql`select table_schema as ns from information_schema.tables where table_schema not in ('pg_catalog', 'information_schema')`);
-    const ns = [...enums.rows, ...tables.rows].map((r) => (r as { ns: string }).ns);
+    const rows = (r: unknown) => (r as { rows: { ns: string }[] }).rows;
+    const ns = [...rows(enums), ...rows(tables)].map((r) => r.ns);
     expect(ns.length).toBeGreaterThan(0);
     expect(new Set(ns)).toEqual(new Set(['sleepy']));
   });

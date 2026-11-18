@@ -16,6 +16,7 @@
     "eval:pending": "tsx src/worker/cli.ts eval"
   },
   "dependencies": {
+    "@google/genai": "^3.6.0",
     "cheerio": "^1.2.0",
     "drizzle-orm": "^0.45.4",
     "next": "16.4.6",

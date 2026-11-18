@@ -20,3 +20,4 @@
 - 2026-11-18 개발 DB는 Docker 대신 사용자의 로컬 PostgreSQL(다른 앱과 공유). 모든 객체를 `sleepy` 스키마에 생성(drizzle 마이그레이션 기록, pg-boss 큐 포함). `DATABASE_URL`의 Prisma식 `?schema=`는 `sleepy`만 허용하고 연결 전에 제거. (사용자 지시)
 - 2026-11-18 drizzle-kit이 nullable enum 컬럼 타입을 스키마 없이 생성하는 문제가 있어, 생성된 마이그레이션의 `CREATE SCHEMA`와 해당 컬럼을 직접 수정함. 마이그레이션을 새로 생성할 때 `src/db/isolation.test.ts`가 이를 잡아낸다.
 - 2026-11-18 docker-compose.yml은 배포(계획 5)용으로 남겨 둠. 개발에는 사용하지 않음.
+- 2026-11-18 LLM 공급자에 Gemini 추가(@google/genai, 구조화 출력 responseJsonSchema). 설정은 LLM_PROVIDER/LLM_API_KEY/LLM_MODEL/LLM_TEMPERATURE/LLM_TIMEOUT_MS 공통 변수 사용. 실제 호출 1회 검증(gemini-3.1-flash-lite, 약 2초, 입력 768/출력 416 토큰). 기본값은 여전히 fake. (사용자 지시)
