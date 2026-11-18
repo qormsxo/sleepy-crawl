@@ -32,6 +32,8 @@ export interface SourceAdapter {
   /** URL normalization rules for canonical URLs. */
   canonicalRules?: { stripParams?: string[]; hostMap?: Record<string, string> };
   matchUrl(url: URL): { externalId: string } | null;
+  /** The robots-allowed canonical URL for a post link (used for submissions). */
+  canonicalUrlFor?(url: URL): string | null;
   listPopular(ctx: SourceContext): AsyncIterable<ParsedPost>;
   search?(ctx: SourceContext, keyword: string): AsyncIterable<ParsedPost>;
   fetchPost(ctx: SourceContext, ref: { url: string; externalId: string | null }): Promise<ParsedPost>;

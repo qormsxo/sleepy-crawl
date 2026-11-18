@@ -84,6 +84,10 @@ export function htmlAdapter(spec: HtmlSiteSpec): SourceAdapter {
       return c ? { externalId: c.externalId } : null;
     },
 
+    canonicalUrlFor(url) {
+      return spec.canonicalize(url.toString(), url.origin)?.url ?? null;
+    },
+
     async *listPopular(ctx) {
       const empty: string[] = [];
       for (const listUrl of listUrls(ctx, spec.key)) {
