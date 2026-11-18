@@ -82,3 +82,11 @@ describe('validateEvaluation', () => {
     if (r.ok) expect(r.total).toBe(82);
   });
 });
+
+describe('validateEvaluation weights', () => {
+  it('rejects weights missing a score key instead of producing NaN', () => {
+    const { humor: _drop, ...partial } = DEFAULT_WEIGHTS;
+    const r = validateEvaluation(valid(), partial as typeof DEFAULT_WEIGHTS);
+    expect(r.ok).toBe(false);
+  });
+});

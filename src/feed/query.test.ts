@@ -118,3 +118,18 @@ describe('listFeed grouping under filters', () => {
     expect(items.map((i) => i.title)).toEqual(['글 2']);
   });
 });
+
+describe('listFeed with missing values', () => {
+  it('pages through published posts whose score is null without losing or repeating any', async () => {
+    for (let n = 1; n <= 4; n++) await add(n, { score: n % 2 ? 80 : (null as unknown as number) });
+    const seen: string[] = [];
+    let cursor: string | undefined;
+    for (let i = 0; i < 5; i++) {
+      const page = await listFeed(db, { sort: 'score', limit: 1, cursor });
+      seen.push(...page.items.map((x) => x.title));
+      if (!page.nextCursor) break;
+      cursor = page.nextCursor;
+    }
+    expect(seen.sort()).toEqual(['글 1', '글 2', '글 3', '글 4']);
+  });
+});

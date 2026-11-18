@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import {
   pgSchema,
   serial,
@@ -96,7 +97,9 @@ export const crawlErrors = sleepy.table('crawl_errors', {
   occurredAt: ts('occurred_at').notNull().defaultNow(),
 });
 
-export const promptVersions = sleepy.table('prompt_versions', {
+export const promptVersions = sleepy.table(
+  'prompt_versions',
+  {
   id: serial('id').primaryKey(),
   name: text('name').notNull().unique(),
   systemPrompt: text('system_prompt').notNull(),
@@ -109,7 +112,10 @@ export const promptVersions = sleepy.table('prompt_versions', {
   active: boolean('active').notNull().default(false),
   createdAt: ts('created_at').notNull().defaultNow(),
   createdBy: text('created_by'),
-});
+  },
+  // Exactly one active prompt version at a time.
+  (t) => [uniqueIndex('prompt_versions_one_active').on(t.active).where(sql`${t.active} = true`)],
+);
 
 export const posts = sleepy.table(
   'posts',

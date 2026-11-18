@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "prompt_versions_one_active" ON "sleepy"."prompt_versions" USING btree ("active") WHERE "sleepy"."prompt_versions"."active" = true;

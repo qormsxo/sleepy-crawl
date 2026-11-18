@@ -26,3 +26,14 @@ describe('parseDatabaseUrl', () => {
     expect(() => parseDatabaseUrl('postgresql://u:p@localhost:5432/db?schema=public')).toThrow();
   });
 });
+
+describe('prompt_versions', () => {
+  it('allows only one active prompt version', async () => {
+    const { seed } = await import('./seed');
+    const { promptVersions } = await import('./schema');
+    const { PROMPT_V1 } = await import('./seed-data');
+    const db = await createTestDb();
+    await seed(db);
+    await expect(db.insert(promptVersions).values({ ...PROMPT_V1, name: 'v2', active: true })).rejects.toThrow();
+  });
+});

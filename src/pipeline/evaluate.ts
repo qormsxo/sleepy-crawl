@@ -129,7 +129,8 @@ export async function evaluatePost(db: DB, postId: number, deps: EvaluateDeps): 
       preview,
       reason: ok?.value.reason ?? null,
       currentEvaluationId: ev.id,
-      publishedAt: status === 'PUBLISHED' ? now : null,
+      // Re-evaluating an already published post must not bump it to the top of "latest".
+      publishedAt: status === 'PUBLISHED' ? (post.publishedAt ?? now) : null,
     })
     .where(eq(posts.id, postId));
 

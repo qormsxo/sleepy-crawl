@@ -144,3 +144,14 @@ describe('evaluatePost preview backfill', () => {
     expect(p.preview).toBe('기존 미리보기');
   });
 });
+
+describe('evaluatePost re-evaluation', () => {
+  it('keeps the original publishedAt when an already published post is evaluated again', async () => {
+    const id = await postId('1');
+    await evaluatePost(db, id, { llm: createFakeLlm([goodEval()]), adapter: fixtureAdapter, now: NOW });
+    const later = new Date(NOW.getTime() + 3 * 60 * 60 * 1000);
+    await evaluatePost(db, id, { llm: createFakeLlm([goodEval()]), adapter: fixtureAdapter, now: later });
+    const [p] = await db.select().from(posts).where(eq(posts.id, id));
+    expect(p.publishedAt?.toISOString()).toBe(NOW.toISOString());
+  });
+});

@@ -11,6 +11,11 @@ export function validateEvaluation(raw: unknown, weights: Weights): ValidationRe
   if (!parsed.success) return { ok: false, error: `schema: ${parsed.error.message}` };
   const value = parsed.data;
 
+  for (const key of SCORE_KEYS) {
+    const w = weights[key];
+    if (typeof w !== 'number' || !Number.isFinite(w) || w < 0) return { ok: false, error: `invalid weight for ${key}: ${w}` };
+  }
+
   let sum = 0;
   let max = 0;
   for (const key of SCORE_KEYS) {
