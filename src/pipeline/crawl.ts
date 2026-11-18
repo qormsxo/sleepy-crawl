@@ -34,6 +34,8 @@ export type CrawlResult = {
   skippedOutOfWindow: number;
   /** needsDetail items left for the next run because the per-run page-fetch cap was reached. */
   deferred: number;
+  /** Night posts older than max_post_age_hours (e.g. an old post that only now reached a best list). */
+  skippedTooOld: number;
 };
 
 function localDate(t: Date, tz: string): string {
@@ -50,11 +52,11 @@ export async function crawlSource(db: DB, sourceId: number, deps: CrawlDeps): Pr
   const http = deps.http ?? defaultHttpClient();
   // A queued job or a manual run must not reach a host that told us to back off.
   if (source.pausedUntil && source.pausedUntil > now) {
-    return { runId: 0, found: 0, inserted: 0, skippedOutOfWindow: 0, deferred: 0 };
+    return { runId: 0, found: 0, inserted: 0, skippedOutOfWindow: 0, deferred: 0, skippedTooOld: 0 };
   }
 
   const [run] = await db.insert(crawlRuns).values({ sourceId }).returning({ id: crawlRuns.id });
-  const result: CrawlResult = { runId: run.id, found: 0, inserted: 0, skippedOutOfWindow: 0, deferred: 0 };
+  const result: CrawlResult = { runId: run.id, found: 0, inserted: 0, skippedOutOfWindow: 0, deferred: 0, skippedTooOld: 0 };
   let errorCount = 0;
   let failure: string | null = null;
   let blocked = false;
@@ -84,6 +86,9 @@ export async function crawlSource(db: DB, sourceId: number, deps: CrawlDeps): Pr
     const maxDetail = typeof configured === 'number' ? configured : await getSetting(db, 'max_detail_fetches_per_run', 20);
     let detailFetches = 0;
     let untimedPages = 0;
+    // User decision (2026-11-18): only posts written within the last 48h. 0 = no limit.
+    const maxAgeHours = await getSetting(db, 'max_post_age_hours', 48);
+    const oldestAllowed = maxAgeHours > 0 ? now.getTime() - maxAgeHours * 3_600_000 : null;
 
     for await (const listed of adapter.listPopular(ctx)) {
       result.found++;
@@ -122,15 +127,15 @@ export async function crawlSource(db: DB, sourceId: number, deps: CrawlDeps): Pr
             needsDetail: false,
           };
         }
+        if (oldestAllowed !== null && item.postedAt && item.postedAt.getTime() < oldestAllowed) {
+          result.skippedTooOld++;
+          if (item.externalId) await markSeen(db, source.id, item.externalId, 'too_old');
+          continue;
+        }
         const stored = await storePost(db, { source, adapter, item, now, previewMax, activeKeywords, runId: run.id });
         if (stored === 'out_of_window') {
           result.skippedOutOfWindow++;
-          if (item.externalId) {
-            await db
-              .insert(seenItems)
-              .values({ sourceId: source.id, externalId: item.externalId, outcome: 'out_of_window' })
-              .onConflictDoUpdate({ target: [seenItems.sourceId, seenItems.externalId], set: { outcome: 'out_of_window' } });
-          }
+          if (item.externalId) await markSeen(db, source.id, item.externalId, 'out_of_window');
         } else if (stored.isNew) {
           result.inserted++;
           await deps.enqueueEval(stored.postId);
@@ -215,6 +220,14 @@ async function lookupKnown(
     .from(seenItems)
     .where(and(eq(seenItems.sourceId, sourceId), eq(seenItems.externalId, externalId)));
   return s && s.outcome !== 'failing' ? { kind: 'seen' } : null;
+}
+
+/** Remember a judged item so its page is never fetched again (overrides an earlier 'failing' attempt). */
+async function markSeen(db: DB, sourceId: number, externalId: string, outcome: 'out_of_window' | 'too_old'): Promise<void> {
+  await db
+    .insert(seenItems)
+    .values({ sourceId, externalId, outcome })
+    .onConflictDoUpdate({ target: [seenItems.sourceId, seenItems.externalId], set: { outcome } });
 }
 
 export const MAX_PAGE_ATTEMPTS = 3;

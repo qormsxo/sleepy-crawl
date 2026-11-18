@@ -152,3 +152,39 @@ describe('permanently failing post pages', () => {
     expect(await db.select().from(seenItems)).toMatchObject([{ externalId: 'dead', outcome: 'failed' }]);
   });
 });
+
+describe('max post age (user decision: 48 hours)', () => {
+  // NOW is 2026-11-19 10:00 KST. 01:30 KST on earlier nights:
+  const night = (daysBack: number) => new Date(new Date('2026-11-19T01:30:00+09:00').getTime() - daysBack * 86_400_000);
+
+  it('skips night posts older than 48 hours and never re-opens them', async () => {
+    const { adapter, calls } = fakeAdapter([
+      { id: 'recent', listTime: NOW, realTime: night(1), needsDetail: true }, // 32.5h ago
+      { id: 'old', listTime: NOW, realTime: night(3), needsDetail: true }, // 80.5h ago
+    ]);
+    const r = await crawlSource(db, sourceId, { adapter, now: NOW, enqueueEval });
+    expect(r.inserted).toBe(1);
+    expect((await db.select().from(posts)).map((p) => p.externalId)).toEqual(['recent']);
+    expect(await db.select().from(seenItems)).toMatchObject([{ externalId: 'old', outcome: 'too_old' }]);
+    await crawlSource(db, sourceId, { adapter, now: NOW, enqueueEval });
+    expect(calls.filter((c) => c === 'old')).toHaveLength(1);
+  });
+
+  it('keeps a post written the previous night (within the limit)', async () => {
+    const { adapter } = fakeAdapter([{ id: 'edge', listTime: night(1), realTime: night(1), needsDetail: false }]);
+    const r = await crawlSource(db, sourceId, { adapter, now: NOW, enqueueEval });
+    expect(r.inserted).toBe(1);
+  });
+
+  it('applies no age limit when the setting is 0', async () => {
+    await db.update(settings).set({ value: 0 }).where(eq(settings.key, 'max_post_age_hours'));
+    const { adapter } = fakeAdapter([{ id: 'old', listTime: night(10), realTime: night(10), needsDetail: false }]);
+    const r = await crawlSource(db, sourceId, { adapter, now: NOW, enqueueEval });
+    expect(r.inserted).toBe(1);
+  });
+
+  it('is seeded as 48', async () => {
+    const [s] = await db.select().from(settings).where(eq(settings.key, 'max_post_age_hours'));
+    expect(s?.value).toBe(48);
+  });
+});

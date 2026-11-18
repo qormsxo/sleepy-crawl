@@ -85,6 +85,8 @@ export const INITIAL_SETTINGS: Record<string, unknown> = {
   followup_until_hour: 15,
   followup_interval_minutes: 30,
   max_detail_fetches_per_run: 20,
+  // User decision (2026-11-18): skip night posts older than 48h (old posts keep reaching best lists). 0 = no limit.
+  max_post_age_hours: 48,
 };
 
 export const FIXTURE_SOURCE = {
