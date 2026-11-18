@@ -13,6 +13,8 @@ export type DecideInput = {
   thresholds: Thresholds;
   /** When present, approximate times near a window edge go to review (설계 7-1, 7-8 규칙 4). */
   posted?: { at: Date; precision: 'exact' | 'minute' | 'approximate' | null; timezone: string };
+  /** Never auto-publish (manual submissions: time can't be verified). A would-be publish becomes REVIEW. */
+  requiresReview?: boolean;
 };
 
 /** Final publish decision (설계 7-8 규칙 1~8, in order). The LLM's own `decision` is advisory only. */
@@ -25,7 +27,7 @@ export function decideStatus(input: DecideInput): PostStatus {
   const p = input.posted;
   if (p?.precision === 'approximate' && nearWindowBoundary(p.at, p.timezone, BOUNDARY_TOLERANCE_MIN)) return 'REVIEW';
   if (!input.hasTitleOrPreview) return 'HIDDEN';
-  if (total >= thresholds.publish && evaluation.is_candidate) return 'PUBLISHED';
+  if (total >= thresholds.publish && evaluation.is_candidate) return input.requiresReview ? 'REVIEW' : 'PUBLISHED';
   if (total >= thresholds.review) return 'REVIEW';
   return 'HIDDEN';
 }

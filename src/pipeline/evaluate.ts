@@ -30,6 +30,8 @@ export type EvaluateDeps = {
   now?: Date;
   /** Queue workers set this: an LLM outage is rethrown (post stays PENDING_EVAL) so the job retries with backoff. */
   rethrowLlmErrors?: boolean;
+  /** Body supplied by a manual submission: the site is never contacted. Used only for this evaluation. */
+  bodyOverride?: string;
 };
 
 /** Evaluate one post with the active prompt version and apply the publish rules. */
@@ -48,7 +50,7 @@ export async function evaluatePost(db: DB, postId: number, deps: EvaluateDeps): 
     .where(and(eq(keywords.kind, 'MEME'), eq(keywords.active, true)));
 
   // Never touch a host that told us to back off; the queue retries this job later.
-  if (source.pausedUntil && source.pausedUntil > now) {
+  if (deps.bodyOverride === undefined && source.pausedUntil && source.pausedUntil > now) {
     throw new SourcePausedError(source.key, source.pausedUntil);
   }
 
@@ -56,7 +58,10 @@ export async function evaluatePost(db: DB, postId: number, deps: EvaluateDeps): 
   let body = post.preview;
   let fetchedBody: string | null = null;
   let comments: string[] = [];
-  try {
+  if (deps.bodyOverride !== undefined) {
+    fetchedBody = deps.bodyOverride;
+    body = deps.bodyOverride;
+  } else try {
     const adapter = deps.adapter ?? getAdapter(source.adapterKey);
     const ctx = { http: deps.http ?? defaultHttpClient(), config: source.config, now, timezone: source.timezone };
     const full = await adapter.fetchPost(ctx, { url: post.canonicalUrl, externalId: post.externalId });
@@ -110,6 +115,7 @@ export async function evaluatePost(db: DB, postId: number, deps: EvaluateDeps): 
     evaluation: ok?.value ?? null,
     total: ok?.total ?? null,
     hasPostedAt: post.postedAt !== null,
+    requiresReview: post.requiresReview,
     posted: post.postedAt
       ? { at: post.postedAt, precision: post.postedAtPrecision, timezone: post.sourceTimezone }
       : undefined,

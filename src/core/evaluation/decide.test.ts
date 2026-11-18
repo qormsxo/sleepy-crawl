@@ -58,3 +58,13 @@ describe('decideStatus with approximate times', () => {
     expect(decideStatus({ ...base, evaluation: ev(), total: 90, posted: { at: near, precision: 'exact', timezone: 'Asia/Seoul' } })).toBe('PUBLISHED');
   });
 });
+
+describe('decideStatus with requiresReview (manual submissions)', () => {
+  it('turns a would-be publish into review', () => {
+    expect(decideStatus({ ...base, evaluation: ev(), total: 95, requiresReview: true })).toBe('REVIEW');
+  });
+  it('still hides low scores and blocks unsafe posts', () => {
+    expect(decideStatus({ ...base, evaluation: ev(), total: 20, requiresReview: true })).toBe('HIDDEN');
+    expect(decideStatus({ ...base, evaluation: ev({ is_safe: false }), total: 95, requiresReview: true })).toBe('BLOCKED');
+  });
+});

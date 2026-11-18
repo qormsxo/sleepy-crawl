@@ -3,6 +3,7 @@ import type { DB } from '../db/client';
 import { crawlErrors, crawlRuns, keywords, postDiscoveries, posts, seenItems, sources } from '../db/schema';
 import { getAdapter } from '../sources/registry';
 import type { ParsedPost, SourceAdapter } from '../sources/types';
+import type { CollectionPath } from '../core/constants';
 import { createHttpClient, HttpBlockedError, type HttpClient } from '../lib/http';
 import { getSetting } from '../lib/settings';
 import { canonicalizeUrl, makePreview } from '../core/normalize';
@@ -38,7 +39,7 @@ export type CrawlResult = {
   skippedTooOld: number;
 };
 
-function localDate(t: Date, tz: string): string {
+export function localDate(t: Date, tz: string): string {
   const { y, m, d } = localParts(t, tz);
   return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }
@@ -70,16 +71,7 @@ export async function crawlSource(db: DB, sourceId: number, deps: CrawlDeps): Pr
     const adapter = deps.adapter ?? getAdapter(source.adapterKey);
     const previewMax = await getSetting(db, 'preview_max_chars', 120);
     const today = localDate(now, tz);
-    const activeKeywords = await db
-      .select()
-      .from(keywords)
-      .where(
-        and(
-          eq(keywords.active, true),
-          or(isNull(keywords.startsOn), lte(keywords.startsOn, today)),
-          or(isNull(keywords.endsOn), gte(keywords.endsOn, today)),
-        ),
-      );
+    const activeKeywords = await loadActiveKeywords(db, today);
     const ctx = { http, config: source.config, now, timezone: tz };
     // A source can lower the cap in its config (e.g. a site that throttles post pages hard).
     const configured = (source.config as { maxDetailFetches?: unknown }).maxDetailFetches;
@@ -132,7 +124,7 @@ export async function crawlSource(db: DB, sourceId: number, deps: CrawlDeps): Pr
           if (item.externalId) await markSeen(db, source.id, item.externalId, 'too_old');
           continue;
         }
-        const stored = await storePost(db, { source, adapter, item, now, previewMax, activeKeywords, runId: run.id });
+        const stored = await storePost(db, { source, canonicalRules: adapter.canonicalRules, item, now, previewMax, activeKeywords, runId: run.id });
         if (stored === 'out_of_window') {
           result.skippedOutOfWindow++;
           if (item.externalId) await markSeen(db, source.id, item.externalId, 'out_of_window');
@@ -205,11 +197,11 @@ async function updateSourceHealth(
     .where(eq(sources.id, source.id));
 }
 
-async function lookupKnown(
+export async function lookupKnown(
   db: DB,
   sourceId: number,
   externalId: string,
-): Promise<{ kind: 'post'; postId: number } | { kind: 'seen' } | null> {
+): Promise<{ kind: 'post'; postId: number } | { kind: 'seen'; outcome: string } | null> {
   const [p] = await db
     .select({ id: posts.id })
     .from(posts)
@@ -219,11 +211,11 @@ async function lookupKnown(
     .select({ outcome: seenItems.outcome })
     .from(seenItems)
     .where(and(eq(seenItems.sourceId, sourceId), eq(seenItems.externalId, externalId)));
-  return s && s.outcome !== 'failing' ? { kind: 'seen' } : null;
+  return s && s.outcome !== 'failing' ? { kind: 'seen', outcome: s.outcome } : null;
 }
 
 /** Remember a judged item so its page is never fetched again (overrides an earlier 'failing' attempt). */
-async function markSeen(db: DB, sourceId: number, externalId: string, outcome: 'out_of_window' | 'too_old'): Promise<void> {
+export async function markSeen(db: DB, sourceId: number, externalId: string, outcome: 'out_of_window' | 'too_old'): Promise<void> {
   await db
     .insert(seenItems)
     .values({ sourceId, externalId, outcome })
@@ -246,22 +238,41 @@ async function notePageFailure(db: DB, sourceId: number, externalId: string): Pr
     });
 }
 
-type StoreArgs = {
+/** Keywords active on `today` (YYYY-MM-DD in the source's zone). */
+export async function loadActiveKeywords(db: DB, today: string) {
+  return db
+    .select()
+    .from(keywords)
+    .where(
+      and(
+        eq(keywords.active, true),
+        or(isNull(keywords.startsOn), lte(keywords.startsOn, today)),
+        or(isNull(keywords.endsOn), gte(keywords.endsOn, today)),
+      ),
+    );
+}
+
+export type StoreArgs = {
   source: typeof sources.$inferSelect;
-  adapter: SourceAdapter;
+  canonicalRules?: SourceAdapter['canonicalRules'];
   item: ParsedPost;
   now: Date;
   previewMax: number;
   activeKeywords: { id: number; keyword: string; aliases: string[] }[];
-  runId: number;
+  runId?: number | null;
+  path?: CollectionPath;
+  submissionId?: number | null;
+  requiresReview?: boolean;
 };
 
-async function storePost(db: DB, a: StoreArgs): Promise<'out_of_window' | { postId: number; isNew: boolean }> {
+/** Store one candidate (window check, canonical URL, dedupe) and record how it was discovered. */
+export async function storePost(db: DB, a: StoreArgs): Promise<'out_of_window' | { postId: number; isNew: boolean }> {
   const tz = a.source.timezone;
   const postedAt = a.item.postedAt && a.item.postedAt.getTime() <= a.now.getTime() ? a.item.postedAt : null;
   if (postedAt && !isInNightWindow(postedAt, tz)) return 'out_of_window';
 
-  const canonicalUrl = canonicalizeUrl(a.item.url, a.adapter.canonicalRules);
+  const canonicalUrl = canonicalizeUrl(a.item.url, a.canonicalRules);
+  const path = a.path ?? 'POPULAR';
   const title = a.item.title.trim();
   const preview = makePreview(a.item.bodyText ?? '', a.previewMax);
   const matched = matchKeywords(`${title} ${a.item.bodyText ?? ''}`, a.activeKeywords);
@@ -280,7 +291,8 @@ async function storePost(db: DB, a: StoreArgs): Promise<'out_of_window' | { post
       nightDate: postedAt ? nightDate(postedAt, tz) : null,
       nightHour: postedAt ? nightHour(postedAt, tz) : null,
       collectedAt: a.now,
-      primaryPath: 'POPULAR',
+      primaryPath: path,
+      requiresReview: a.requiresReview ?? false,
       matchedKeywords: matched,
       similarGroupId: title || preview ? similarGroupKey(title, preview) : null,
       status: 'PENDING_EVAL',
@@ -304,7 +316,10 @@ async function storePost(db: DB, a: StoreArgs): Promise<'out_of_window' | { post
     postId = existing.id;
   }
 
-  await db.insert(postDiscoveries).values({ postId, path: 'POPULAR', crawlRunId: a.runId }).onConflictDoNothing();
+  await db
+    .insert(postDiscoveries)
+    .values({ postId, path, crawlRunId: a.runId ?? null, submissionId: a.submissionId ?? null })
+    .onConflictDoNothing();
   return { postId, isNew };
 }
 
