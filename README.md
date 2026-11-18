@@ -56,11 +56,12 @@ http://localhost:3000 에서 샘플 글 피드를 볼 수 있습니다. 워커�
 |---|---|
 | `npm test` | 전체 테스트 (DB 테스트는 메모리 Postgres 사용, Docker 불필요) |
 | `npm run db:generate` | 스키마 변경 후 마이그레이션 생성 |
-| `npm run crawl:once -- <source> [--now ISO]` | 큐 없이 한 번 수집하고 바로 평가 |
+| `npm run crawl:once -- <source> [--now ISO]` | 큐 없이 한 번 수집하고 바로 평가. source: `todayhumor`, `fmkorea`, `ruliweb`, `inven`, `clien`, `humoruniv`, `fixture`(개발용) |
 | `npm run eval:pending` | 평가 대기 글 전부 평가 |
 
 ## 문서
 
 - 설계: [docs/superpowers/specs/2026-11-18-sleepy-crawler-design.md](docs/superpowers/specs/2026-11-18-sleepy-crawler-design.md)
 - 결정 기록: [docs/decisions.md](docs/decisions.md)
-- 단계 보고서: [docs/phases/phase-1.md](docs/phases/phase-1.md)
+- 수집 대상 조사: [docs/sources.md](docs/sources.md)
+- 단계 보고서: [Phase 1](docs/phases/phase-1.md), [Phase 2](docs/phases/phase-2.md)
