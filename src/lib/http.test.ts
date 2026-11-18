@@ -132,3 +132,38 @@ describe('robots.txt failures and redirects', () => {
     await expect(http.get('https://ex.com/go')).rejects.toBeInstanceOf(RobotsDisallowedError);
   });
 });
+
+describe('character sets', () => {
+  // "웃긴대학" in EUC-KR
+  const eucKr = new Uint8Array([0xbf, 0xf4, 0xb1, 0xe4, 0xb4, 0xeb, 0xc7, 0xd0]);
+  const html = (meta: string) => {
+    const head = new TextEncoder().encode(`<html><head>${meta}</head><body>`);
+    const tail = new TextEncoder().encode('</body></html>');
+    return new Uint8Array([...head, ...eucKr, ...tail]);
+  };
+  const serve = (body: Uint8Array, contentType: string) =>
+    (async (input: string | URL | Request) =>
+      String(input).endsWith('/robots.txt')
+        ? new Response('', { status: 404 })
+        : new Response(body as unknown as BodyInit, { status: 200, headers: { 'content-type': contentType } })) as typeof fetch;
+
+  it('decodes using the Content-Type charset', async () => {
+    const c = clock();
+    const http = createHttpClient({ ...base, fetchImpl: serve(html(''), 'text/html; charset=EUC-KR'), now: c.now, sleep: c.sleep });
+    expect((await http.get('https://ex.com/a')).text).toContain('웃긴대학');
+  });
+
+  it('falls back to the <meta> charset when the header has none', async () => {
+    const c = clock();
+    const meta = '<meta http-equiv="Content-Type" content="text/html; charset=euc-kr">';
+    const http = createHttpClient({ ...base, fetchImpl: serve(html(meta), 'text/html'), now: c.now, sleep: c.sleep });
+    expect((await http.get('https://ex.com/a')).text).toContain('웃긴대학');
+  });
+
+  it('defaults to UTF-8', async () => {
+    const c = clock();
+    const body = new TextEncoder().encode('<p>새벽</p>');
+    const http = createHttpClient({ ...base, fetchImpl: serve(body, 'text/html'), now: c.now, sleep: c.sleep });
+    expect((await http.get('https://ex.com/a')).text).toContain('새벽');
+  });
+});

@@ -125,3 +125,22 @@ describe('evaluatePost with rethrowLlmErrors', () => {
     expect(await evaluatePost(db, id, { llm, adapter: fixtureAdapter, now: NOW, rethrowLlmErrors: true })).toBe('EVAL_FAILED');
   });
 });
+
+describe('evaluatePost preview backfill', () => {
+  it('fills an empty preview from the fetched body (list pages carry no body)', async () => {
+    const id = await postId('1');
+    await db.update(posts).set({ preview: '' }).where(eq(posts.id, id));
+    await evaluatePost(db, id, { llm: createFakeLlm([goodEval()]), adapter: fixtureAdapter, now: NOW });
+    const [p] = await db.select().from(posts).where(eq(posts.id, id));
+    expect(p.preview).toContain('물 마시러 나왔다가');
+    expect(Array.from(p.preview).length).toBeLessThanOrEqual(121);
+  });
+
+  it('keeps an existing preview', async () => {
+    const id = await postId('1');
+    await db.update(posts).set({ preview: '기존 미리보기' }).where(eq(posts.id, id));
+    await evaluatePost(db, id, { llm: createFakeLlm([goodEval()]), adapter: fixtureAdapter, now: NOW });
+    const [p] = await db.select().from(posts).where(eq(posts.id, id));
+    expect(p.preview).toBe('기존 미리보기');
+  });
+});

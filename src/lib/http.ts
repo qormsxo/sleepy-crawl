@@ -88,6 +88,20 @@ function escapeRe(s: string): string {
   return s.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
 }
 
+/** Charset from Content-Type, else from a <meta> in the first 4KB, else UTF-8 (some Korean sites are EUC-KR). */
+async function decodeBody(res: Response): Promise<string> {
+  const bytes = new Uint8Array(await res.arrayBuffer());
+  const fromHeader = res.headers.get('content-type')?.match(/charset=["']?([\w-]+)/i)?.[1];
+  const head = new TextDecoder('latin1').decode(bytes.subarray(0, 4096));
+  const fromMeta = head.match(/<meta[^>]+charset=["']?([\w-]+)/i)?.[1];
+  const charset = (fromHeader ?? fromMeta ?? 'utf-8').toLowerCase();
+  try {
+    return new TextDecoder(charset).decode(bytes);
+  } catch {
+    return new TextDecoder('utf-8').decode(bytes); // unknown label
+  }
+}
+
 /** Shared client for all outbound crawling: robots check, per-host spacing, timeout, retries. */
 export function createHttpClient(opts: HttpClientOptions): HttpClient {
   const fetchImpl = opts.fetchImpl ?? fetch;
@@ -166,7 +180,7 @@ export function createHttpClient(opts: HttpClientOptions): HttpClient {
             lastError = new Error(`HTTP ${res.status}: ${url}`);
             continue;
           }
-          return { status: res.status, text: await res.text() };
+          return { status: res.status, text: await decodeBody(res) };
         } catch (err) {
           if (err instanceof HttpBlockedError || err instanceof RobotsDisallowedError) throw err;
           lastError = err;

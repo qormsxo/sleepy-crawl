@@ -11,6 +11,8 @@ import type { SourceAdapter } from '../sources/types';
 import type { HttpClient } from '../lib/http';
 import type { LlmClient, LlmResponse } from '../llm/types';
 import { defaultHttpClient } from './crawl';
+import { makePreview } from '../core/normalize';
+import { getSetting } from '../lib/settings';
 
 export type EvaluateDeps = {
   llm: LlmClient;
@@ -38,16 +40,22 @@ export async function evaluatePost(db: DB, postId: number, deps: EvaluateDeps): 
 
   // Body and comments are fetched transiently and never stored.
   let body = post.preview;
+  let fetchedBody: string | null = null;
   let comments: string[] = [];
   try {
     const adapter = deps.adapter ?? getAdapter(source.adapterKey);
     const ctx = { http: deps.http ?? defaultHttpClient(), config: source.config, now, timezone: source.timezone };
     const full = await adapter.fetchPost(ctx, { url: post.canonicalUrl, externalId: post.externalId });
+    fetchedBody = full.bodyText ?? null;
     body = full.bodyText ?? body;
     comments = full.comments ?? [];
   } catch {
     // Original unavailable: evaluate from title + preview only.
   }
+
+  // List pages often carry no body: fill the card preview from the page fetched for evaluation.
+  const preview =
+    post.preview.trim() || (fetchedBody ? makePreview(fetchedBody, await getSetting(db, 'preview_max_chars', 120)) : '');
 
   const { system, user } = buildPrompt(
     prompt,
@@ -84,7 +92,7 @@ export async function evaluatePost(db: DB, postId: number, deps: EvaluateDeps): 
     posted: post.postedAt
       ? { at: post.postedAt, precision: post.postedAtPrecision, timezone: post.sourceTimezone }
       : undefined,
-    hasTitleOrPreview: post.title.trim() !== '' || post.preview.trim() !== '',
+    hasTitleOrPreview: post.title.trim() !== '' || preview !== '',
     thresholds: prompt.thresholds,
   });
 
@@ -118,6 +126,7 @@ export async function evaluatePost(db: DB, postId: number, deps: EvaluateDeps): 
       status,
       score: ok?.total ?? null,
       categories: ok?.value.categories ?? [],
+      preview,
       reason: ok?.value.reason ?? null,
       currentEvaluationId: ev.id,
       publishedAt: status === 'PUBLISHED' ? now : null,
