@@ -29,6 +29,8 @@ export const timePrecision = sleepy.enum('time_precision', ['exact', 'minute', '
 export const runStatus = sleepy.enum('run_status', ['RUNNING', 'SUCCEEDED', 'FAILED']);
 export const categoryEnum = sleepy.enum('category', CATEGORIES);
 export const evalPurpose = sleepy.enum('eval_purpose', ['LIVE', 'REEVAL']);
+export const submissionStatus = sleepy.enum('submission_status', ['RECEIVED', 'REJECTED', 'DUPLICATE', 'PROCESSED']);
+export const submissionMode = sleepy.enum('submission_mode', ['auto', 'manual']);
 
 const ts = (name: string) => timestamp(name, { withTimezone: true });
 
@@ -145,6 +147,8 @@ export const posts = sleepy.table(
     currentEvaluationId: integer('current_evaluation_id'),
     publishedAt: ts('published_at'),
     removedAt: ts('removed_at'),
+    /** Never auto-publish (e.g. manual submissions whose time can't be verified). */
+    requiresReview: boolean('requires_review').notNull().default(false),
   },
   (t) => [
     uniqueIndex('posts_source_external').on(t.sourceId, t.externalId),
@@ -198,6 +202,34 @@ export const evaluations = sleepy.table('evaluations', {
   purpose: evalPurpose('purpose').notNull().default('LIVE'),
   createdAt: ts('created_at').notNull().defaultNow(),
 });
+
+/**
+ * Anonymous submissions. Only a salted hash of the IP is kept. For manual (no-fetch) sources the
+ * submitter's excerpt is kept only until evaluation, then cleared.
+ */
+export const submissions = sleepy.table(
+  'submissions',
+  {
+    id: serial('id').primaryKey(),
+    url: text('url').notNull(),
+    canonicalUrl: text('canonical_url'),
+    sourceId: integer('source_id').references(() => sources.id),
+    externalId: text('external_id'),
+    note: text('note'),
+    suggestedCategory: categoryEnum('suggested_category'),
+    ipHash: text('ip_hash').notNull(),
+    mode: submissionMode('mode').notNull(),
+    manualTitle: text('manual_title'),
+    manualPostedAt: ts('manual_posted_at'),
+    manualExcerpt: text('manual_excerpt'),
+    status: submissionStatus('status').notNull().default('RECEIVED'),
+    rejectReason: text('reject_reason'),
+    postId: integer('post_id').references(() => posts.id),
+    createdAt: ts('created_at').notNull().defaultNow(),
+    processedAt: ts('processed_at'),
+  },
+  (t) => [index('submissions_ip_created').on(t.ipHash, t.createdAt), index('submissions_status').on(t.status)],
+);
 
 /** List items already judged (e.g. out of window) so their pages are never fetched again. */
 export const seenItems = sleepy.table(

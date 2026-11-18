@@ -87,6 +87,8 @@ export const INITIAL_SETTINGS: Record<string, unknown> = {
   max_detail_fetches_per_run: 20,
   // User decision (2026-11-18): skip night posts older than 48h (old posts keep reaching best lists). 0 = no limit.
   max_post_age_hours: 48,
+  submission_per_hour: 5,
+  submission_per_day: 20,
 };
 
 export const FIXTURE_SOURCE = {
@@ -152,8 +154,13 @@ export const KOREAN_SOURCES: SourceSeed[] = [
     policyCheckedAt: CHECKED, timezone: 'Asia/Seoul',
     config: { lists: ['https://web.humoruniv.com/board/humor/list.html?table=pds'] },
   },
+  {
+    key: 'dcinside', name: 'DCInside', region: 'KR', adapterKey: 'dcinside', status: 'UNSUPPORTED',
+    statusReason: '약관 제16조: 사전 서면 동의 없는 크롤링 명시적 금지. 수동 제보만 받음(서버는 접속하지 않음)',
+    policyNotes: 'docs/sources.md 참고', policyCheckedAt: CHECKED, timezone: 'Asia/Seoul',
+    config: { manualSubmission: true },
+  },
   ...([
-    ['dcinside', 'DCInside', '약관 제16조: 사전 서면 동의 없는 크롤링 명시적 금지'],
     ['mlbpark', 'MLB PARK', 'robots.txt가 일반 봇 전면 금지(Disallow: /)'],
     ['ppomppu', '뽐뿌', '첫 페이지부터 403 차단(우회하지 않음)'],
     ['theqoo', '더쿠', '봇 요청에 보안 검사(CAPTCHA) 페이지로 차단(우회하지 않음)'],

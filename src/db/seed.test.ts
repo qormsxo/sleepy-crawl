@@ -54,3 +54,26 @@ describe('seed: Korean sources (docs/sources.md)', () => {
     expect(inven.status).toBe('DISABLED');
   });
 });
+
+describe('seed: submissions', () => {
+  it('adds submission rate limits and enables manual submission for dcinside only', async () => {
+    const db = await createTestDb();
+    await seed(db);
+    const rows = Object.fromEntries((await db.select().from(settings)).map((r) => [r.key, r.value]));
+    expect(rows).toMatchObject({ submission_per_hour: 5, submission_per_day: 20 });
+    const manual = (await db.select().from(sources)).filter((s) => (s.config as { manualSubmission?: boolean }).manualSubmission);
+    expect(manual.map((s) => s.key)).toEqual(['dcinside']);
+  });
+
+  it('has a submissions table that stores only an IP hash', async () => {
+    const { submissions } = await import('./schema');
+    const db = await createTestDb();
+    await seed(db);
+    const [row] = await db
+      .insert(submissions)
+      .values({ url: 'https://www.clien.net/service/board/park/1', ipHash: 'abc', mode: 'auto' })
+      .returning();
+    expect(row).toMatchObject({ status: 'RECEIVED', ipHash: 'abc' });
+    expect(Object.keys(row)).not.toContain('ip');
+  });
+});
