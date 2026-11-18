@@ -1,12 +1,12 @@
 {
-  "id": "f610db75-2861-4a17-ab25-60bb546006ea",
+  "id": "3d2820de-86a8-4ddf-86da-653e6258e9ff",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
-    "public.crawl_errors": {
+    "sleepy.crawl_errors": {
       "name": "crawl_errors",
-      "schema": "",
+      "schema": "sleepy",
       "columns": {
         "id": {
           "name": "id",
@@ -58,6 +58,7 @@
           "name": "crawl_errors_crawl_run_id_crawl_runs_id_fk",
           "tableFrom": "crawl_errors",
           "tableTo": "crawl_runs",
+          "schemaTo": "sleepy",
           "columnsFrom": [
             "crawl_run_id"
           ],
@@ -71,6 +72,7 @@
           "name": "crawl_errors_source_id_sources_id_fk",
           "tableFrom": "crawl_errors",
           "tableTo": "sources",
+          "schemaTo": "sleepy",
           "columnsFrom": [
             "source_id"
           ],
@@ -87,9 +89,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.crawl_runs": {
+    "sleepy.crawl_runs": {
       "name": "crawl_runs",
-      "schema": "",
+      "schema": "sleepy",
       "columns": {
         "id": {
           "name": "id",
@@ -119,7 +121,7 @@
         "status": {
           "name": "status",
           "type": "run_status",
-          "typeSchema": "public",
+          "typeSchema": "sleepy",
           "primaryKey": false,
           "notNull": true,
           "default": "'RUNNING'"
@@ -171,6 +173,7 @@
           "name": "crawl_runs_source_id_sources_id_fk",
           "tableFrom": "crawl_runs",
           "tableTo": "sources",
+          "schemaTo": "sleepy",
           "columnsFrom": [
             "source_id"
           ],
@@ -187,9 +190,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.evaluations": {
+    "sleepy.evaluations": {
       "name": "evaluations",
-      "schema": "",
+      "schema": "sleepy",
       "columns": {
         "id": {
           "name": "id",
@@ -242,7 +245,7 @@
         "categories": {
           "name": "categories",
           "type": "category[]",
-          "typeSchema": "public",
+          "typeSchema": "sleepy",
           "primaryKey": false,
           "notNull": false
         },
@@ -267,7 +270,7 @@
         "final_decision": {
           "name": "final_decision",
           "type": "post_status",
-          "typeSchema": "public",
+          "typeSchema": "sleepy",
           "primaryKey": false,
           "notNull": true
         },
@@ -305,7 +308,7 @@
         "purpose": {
           "name": "purpose",
           "type": "eval_purpose",
-          "typeSchema": "public",
+          "typeSchema": "sleepy",
           "primaryKey": false,
           "notNull": true,
           "default": "'LIVE'"
@@ -324,6 +327,7 @@
           "name": "evaluations_post_id_posts_id_fk",
           "tableFrom": "evaluations",
           "tableTo": "posts",
+          "schemaTo": "sleepy",
           "columnsFrom": [
             "post_id"
           ],
@@ -337,6 +341,7 @@
           "name": "evaluations_prompt_version_id_prompt_versions_id_fk",
           "tableFrom": "evaluations",
           "tableTo": "prompt_versions",
+          "schemaTo": "sleepy",
           "columnsFrom": [
             "prompt_version_id"
           ],
@@ -353,9 +358,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.keywords": {
+    "sleepy.keywords": {
       "name": "keywords",
-      "schema": "",
+      "schema": "sleepy",
       "columns": {
         "id": {
           "name": "id",
@@ -366,7 +371,7 @@
         "kind": {
           "name": "kind",
           "type": "keyword_kind",
-          "typeSchema": "public",
+          "typeSchema": "sleepy",
           "primaryKey": false,
           "notNull": true
         },
@@ -453,9 +458,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.post_discoveries": {
+    "sleepy.post_discoveries": {
       "name": "post_discoveries",
-      "schema": "",
+      "schema": "sleepy",
       "columns": {
         "id": {
           "name": "id",
@@ -472,7 +477,7 @@
         "path": {
           "name": "path",
           "type": "collection_path",
-          "typeSchema": "public",
+          "typeSchema": "sleepy",
           "primaryKey": false,
           "notNull": true
         },
@@ -508,6 +513,7 @@
           "name": "post_discoveries_post_id_posts_id_fk",
           "tableFrom": "post_discoveries",
           "tableTo": "posts",
+          "schemaTo": "sleepy",
           "columnsFrom": [
             "post_id"
           ],
@@ -521,6 +527,7 @@
           "name": "post_discoveries_keyword_id_keywords_id_fk",
           "tableFrom": "post_discoveries",
           "tableTo": "keywords",
+          "schemaTo": "sleepy",
           "columnsFrom": [
             "keyword_id"
           ],
@@ -534,6 +541,7 @@
           "name": "post_discoveries_crawl_run_id_crawl_runs_id_fk",
           "tableFrom": "post_discoveries",
           "tableTo": "crawl_runs",
+          "schemaTo": "sleepy",
           "columnsFrom": [
             "crawl_run_id"
           ],
@@ -560,9 +568,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.posts": {
+    "sleepy.posts": {
       "name": "posts",
-      "schema": "",
+      "schema": "sleepy",
       "columns": {
         "id": {
           "name": "id",
@@ -611,7 +619,7 @@
         "posted_at_precision": {
           "name": "posted_at_precision",
           "type": "time_precision",
-          "typeSchema": "public",
+          "typeSchema": "sleepy",
           "primaryKey": false,
           "notNull": false
         },
@@ -643,7 +651,7 @@
         "primary_path": {
           "name": "primary_path",
           "type": "collection_path",
-          "typeSchema": "public",
+          "typeSchema": "sleepy",
           "primaryKey": false,
           "notNull": true
         },
@@ -663,7 +671,7 @@
         "status": {
           "name": "status",
           "type": "post_status",
-          "typeSchema": "public",
+          "typeSchema": "sleepy",
           "primaryKey": false,
           "notNull": true,
           "default": "'PENDING_EVAL'"
@@ -671,7 +679,7 @@
         "status_source": {
           "name": "status_source",
           "type": "status_source",
-          "typeSchema": "public",
+          "typeSchema": "sleepy",
           "primaryKey": false,
           "notNull": true,
           "default": "'AUTO'"
@@ -685,7 +693,7 @@
         "categories": {
           "name": "categories",
           "type": "category[]",
-          "typeSchema": "public",
+          "typeSchema": "sleepy",
           "primaryKey": false,
           "notNull": true,
           "default": "'{}'"
@@ -815,6 +823,7 @@
           "name": "posts_source_id_sources_id_fk",
           "tableFrom": "posts",
           "tableTo": "sources",
+          "schemaTo": "sleepy",
           "columnsFrom": [
             "source_id"
           ],
@@ -831,9 +840,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.prompt_versions": {
+    "sleepy.prompt_versions": {
       "name": "prompt_versions",
-      "schema": "",
+      "schema": "sleepy",
       "columns": {
         "id": {
           "name": "id",
@@ -926,9 +935,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.settings": {
+    "sleepy.settings": {
       "name": "settings",
-      "schema": "",
+      "schema": "sleepy",
       "columns": {
         "key": {
           "name": "key",
@@ -958,9 +967,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.sources": {
+    "sleepy.sources": {
       "name": "sources",
-      "schema": "",
+      "schema": "sleepy",
       "columns": {
         "id": {
           "name": "id",
@@ -983,7 +992,7 @@
         "region": {
           "name": "region",
           "type": "source_region",
-          "typeSchema": "public",
+          "typeSchema": "sleepy",
           "primaryKey": false,
           "notNull": true,
           "default": "'KR'"
@@ -997,7 +1006,7 @@
         "status": {
           "name": "status",
           "type": "source_status",
-          "typeSchema": "public",
+          "typeSchema": "sleepy",
           "primaryKey": false,
           "notNull": true,
           "default": "'UNSUPPORTED'"
@@ -1073,9 +1082,9 @@
     }
   },
   "enums": {
-    "public.category": {
+    "sleepy.category": {
       "name": "category",
-      "schema": "public",
+      "schema": "sleepy",
       "values": [
         "ABSURD",
         "LATE_NIGHT_EMOTION",
@@ -1087,9 +1096,9 @@
         "OTHER"
       ]
     },
-    "public.collection_path": {
+    "sleepy.collection_path": {
       "name": "collection_path",
-      "schema": "public",
+      "schema": "sleepy",
       "values": [
         "POPULAR",
         "MIDNIGHT_KEYWORD",
@@ -1097,26 +1106,26 @@
         "USER_SUBMISSION"
       ]
     },
-    "public.eval_purpose": {
+    "sleepy.eval_purpose": {
       "name": "eval_purpose",
-      "schema": "public",
+      "schema": "sleepy",
       "values": [
         "LIVE",
         "REEVAL"
       ]
     },
-    "public.keyword_kind": {
+    "sleepy.keyword_kind": {
       "name": "keyword_kind",
-      "schema": "public",
+      "schema": "sleepy",
       "values": [
         "MIDNIGHT",
         "ABSURD",
         "MEME"
       ]
     },
-    "public.post_status": {
+    "sleepy.post_status": {
       "name": "post_status",
-      "schema": "public",
+      "schema": "sleepy",
       "values": [
         "PENDING_EVAL",
         "PUBLISHED",
@@ -1126,26 +1135,26 @@
         "EVAL_FAILED"
       ]
     },
-    "public.run_status": {
+    "sleepy.run_status": {
       "name": "run_status",
-      "schema": "public",
+      "schema": "sleepy",
       "values": [
         "RUNNING",
         "SUCCEEDED",
         "FAILED"
       ]
     },
-    "public.source_region": {
+    "sleepy.source_region": {
       "name": "source_region",
-      "schema": "public",
+      "schema": "sleepy",
       "values": [
         "KR",
         "GLOBAL"
       ]
     },
-    "public.source_status": {
+    "sleepy.source_status": {
       "name": "source_status",
-      "schema": "public",
+      "schema": "sleepy",
       "values": [
         "ACTIVE",
         "UNSUPPORTED",
@@ -1154,17 +1163,17 @@
         "DEGRADED"
       ]
     },
-    "public.status_source": {
+    "sleepy.status_source": {
       "name": "status_source",
-      "schema": "public",
+      "schema": "sleepy",
       "values": [
         "AUTO",
         "ADMIN"
       ]
     },
-    "public.time_precision": {
+    "sleepy.time_precision": {
       "name": "time_precision",
-      "schema": "public",
+      "schema": "sleepy",
       "values": [
         "exact",
         "minute",
@@ -1172,7 +1181,9 @@
       ]
     }
   },
-  "schemas": {},
+  "schemas": {
+    "sleepy": "sleepy"
+  },
   "sequences": {},
   "roles": {},
   "policies": {},

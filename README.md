@@ -12,7 +12,7 @@
 
 ## 로컬 실행
 
-필요: Node.js 24, Docker
+필요: Node.js 24, PostgreSQL 16 이상 (로컬 설치 DB를 그대로 사용. 다른 앱과 같은 DB여도 되며 모든 객체는 `sleepy` 스키마에만 생성)
 
 ```bash
 npm install
@@ -22,9 +22,7 @@ npm install
 cp .env.example .env
 ```
 
-```bash
-docker compose up -d
-```
+`.env`의 `DATABASE_URL`을 로컬 DB로 맞춘 뒤:
 
 ```bash
 npm run db:migrate && npm run db:seed
@@ -44,10 +42,12 @@ http://localhost:3000 에서 샘플 글 피드를 볼 수 있습니다. 워커�
 
 | 이름 | 설명 |
 |---|---|
-| `DATABASE_URL` | PostgreSQL 연결 문자열 (docker compose 기본값: 포트 5433) |
-| `LLM_PROVIDER` | `openai` 또는 `fake`(로컬 데모용 가짜 평가) |
-| `OPENAI_API_KEY` | OpenAI API 키 (`openai`일 때) |
-| `OPENAI_MODEL` | 평가에 쓸 모델 이름 (`openai`일 때) |
+| `DATABASE_URL` | PostgreSQL 연결 문자열. `?schema=`를 붙이면 `sleepy`만 허용 |
+| `LLM_PROVIDER` | `gemini`, `openai`, `fake`(외부 호출 없는 데모용 평가) |
+| `LLM_API_KEY` | 선택한 LLM의 API 키 |
+| `LLM_MODEL` | 평가에 쓸 모델 이름 |
+| `LLM_TEMPERATURE` | 기본 0 |
+| `LLM_TIMEOUT_MS` | LLM 호출 제한 시간 (기본 60000) |
 | `LOG_LEVEL` | 로그 수준 (기본 `info`) |
 
 ## 명령

@@ -4,5 +4,8 @@ export default defineConfig({
   dialect: 'postgresql',
   schema: './src/db/schema.ts',
   out: './src/db/migrations',
-  dbCredentials: { url: process.env.DATABASE_URL ?? 'postgres://sleepy:sleepy@localhost:5433/sleepy' },
+  schemaFilter: ['sleepy'],
+  migrations: { schema: 'sleepy' },
+  // drizzle-kit only needs a URL for push/introspect; generation works offline.
+  dbCredentials: { url: (process.env.DATABASE_URL ?? 'postgresql://localhost:5432/postgres').replace(/[?&]schema=[^&]*/, '') },
 });

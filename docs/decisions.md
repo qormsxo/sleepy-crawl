@@ -17,3 +17,6 @@
 - 2026-11-18 허용 소스가 없으면 fixture 소스로 흐름 완성, 애매한 약관은 사용자가 최종 결정. (사용자 승인, 설계 15-2)
 - 2026-11-18 패키지 매니저 npm (로컬에 pnpm 없음). lockfile을 커밋하도록 `.gitignore`의 `package-lock.json` 줄 제거.
 - 2026-11-18 Next.js 16.4 생성 결과의 `AGENTS.md` 유지.
+- 2026-11-18 개발 DB는 Docker 대신 사용자의 로컬 PostgreSQL(다른 앱과 공유). 모든 객체를 `sleepy` 스키마에 생성(drizzle 마이그레이션 기록, pg-boss 큐 포함). `DATABASE_URL`의 Prisma식 `?schema=`는 `sleepy`만 허용하고 연결 전에 제거. (사용자 지시)
+- 2026-11-18 drizzle-kit이 nullable enum 컬럼 타입을 스키마 없이 생성하는 문제가 있어, 생성된 마이그레이션의 `CREATE SCHEMA`와 해당 컬럼을 직접 수정함. 마이그레이션을 새로 생성할 때 `src/db/isolation.test.ts`가 이를 잡아낸다.
+- 2026-11-18 docker-compose.yml은 배포(계획 5)용으로 남겨 둠. 개발에는 사용하지 않음.

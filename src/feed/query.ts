@@ -53,7 +53,7 @@ export async function listFeed(db: DB, f: FeedFilters): Promise<{ items: FeedIte
     eq(posts.status, 'PUBLISHED'),
     // Inner table gets an explicit SQL alias (o); ${posts.*} columns render as the outer "posts" row.
     sql`not exists (
-      select 1 from posts o
+      select 1 from ${posts} o
       where o.status = 'PUBLISHED'
         and o.similar_group_id = ${posts.similarGroupId}
         and (coalesce(o.score, 0) > coalesce(${posts.score}, 0)

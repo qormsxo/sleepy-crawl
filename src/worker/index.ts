@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { PgBoss } from 'pg-boss';
-import { getDb } from '../db/client';
+import { databaseUrl, getDb } from '../db/client';
+import { DB_SCHEMA } from '../db/schema';
 import { crawlSource } from '../pipeline/crawl';
 import { evaluatePost } from '../pipeline/evaluate';
 import { createLlmClient } from '../llm';
@@ -13,11 +14,10 @@ type CrawlJob = { sourceId: number };
 type EvalJob = { postId: number };
 
 async function main() {
-  const url = process.env.DATABASE_URL;
-  if (!url) throw new Error('DATABASE_URL is not set');
   const db = getDb();
   const llm = createLlmClient();
-  const boss = new PgBoss(url);
+  // Queue tables share this app's schema so nothing lands in the other app's schemas.
+  const boss = new PgBoss({ connectionString: databaseUrl(), schema: DB_SCHEMA });
   boss.on('error', (err) => logger.error({ err }, 'pg-boss error'));
   await boss.start();
 

@@ -1,6 +1,5 @@
 import {
-  pgTable,
-  pgEnum,
+  pgSchema,
   serial,
   integer,
   text,
@@ -15,20 +14,24 @@ import {
 } from 'drizzle-orm/pg-core';
 import { CATEGORIES, COLLECTION_PATHS, KEYWORD_KINDS, POST_STATUSES, SOURCE_STATUSES } from '../core/constants';
 
-export const sourceStatus = pgEnum('source_status', SOURCE_STATUSES);
-export const sourceRegion = pgEnum('source_region', ['KR', 'GLOBAL']);
-export const keywordKind = pgEnum('keyword_kind', KEYWORD_KINDS);
-export const postStatus = pgEnum('post_status', POST_STATUSES);
-export const statusSource = pgEnum('status_source', ['AUTO', 'ADMIN']);
-export const collectionPath = pgEnum('collection_path', COLLECTION_PATHS);
-export const timePrecision = pgEnum('time_precision', ['exact', 'minute', 'approximate']);
-export const runStatus = pgEnum('run_status', ['RUNNING', 'SUCCEEDED', 'FAILED']);
-export const categoryEnum = pgEnum('category', CATEGORIES);
-export const evalPurpose = pgEnum('eval_purpose', ['LIVE', 'REEVAL']);
+/** Everything this app owns lives in one schema: the database may be shared with another app. */
+export const DB_SCHEMA = 'sleepy';
+export const sleepy = pgSchema(DB_SCHEMA);
+
+export const sourceStatus = sleepy.enum('source_status', SOURCE_STATUSES);
+export const sourceRegion = sleepy.enum('source_region', ['KR', 'GLOBAL']);
+export const keywordKind = sleepy.enum('keyword_kind', KEYWORD_KINDS);
+export const postStatus = sleepy.enum('post_status', POST_STATUSES);
+export const statusSource = sleepy.enum('status_source', ['AUTO', 'ADMIN']);
+export const collectionPath = sleepy.enum('collection_path', COLLECTION_PATHS);
+export const timePrecision = sleepy.enum('time_precision', ['exact', 'minute', 'approximate']);
+export const runStatus = sleepy.enum('run_status', ['RUNNING', 'SUCCEEDED', 'FAILED']);
+export const categoryEnum = sleepy.enum('category', CATEGORIES);
+export const evalPurpose = sleepy.enum('eval_purpose', ['LIVE', 'REEVAL']);
 
 const ts = (name: string) => timestamp(name, { withTimezone: true });
 
-export const sources = pgTable('sources', {
+export const sources = sleepy.table('sources', {
   id: serial('id').primaryKey(),
   key: text('key').notNull().unique(),
   name: text('name').notNull(),
@@ -45,7 +48,7 @@ export const sources = pgTable('sources', {
   createdAt: ts('created_at').notNull().defaultNow(),
 });
 
-export const keywords = pgTable(
+export const keywords = sleepy.table(
   'keywords',
   {
     id: serial('id').primaryKey(),
@@ -62,7 +65,7 @@ export const keywords = pgTable(
   (t) => [uniqueIndex('keywords_kind_keyword').on(t.kind, t.keyword)],
 );
 
-export const crawlRuns = pgTable('crawl_runs', {
+export const crawlRuns = sleepy.table('crawl_runs', {
   id: serial('id').primaryKey(),
   sourceId: integer('source_id')
     .notNull()
@@ -78,7 +81,7 @@ export const crawlRuns = pgTable('crawl_runs', {
   errorSummary: text('error_summary'),
 });
 
-export const crawlErrors = pgTable('crawl_errors', {
+export const crawlErrors = sleepy.table('crawl_errors', {
   id: serial('id').primaryKey(),
   crawlRunId: integer('crawl_run_id').references(() => crawlRuns.id),
   sourceId: integer('source_id')
@@ -90,7 +93,7 @@ export const crawlErrors = pgTable('crawl_errors', {
   occurredAt: ts('occurred_at').notNull().defaultNow(),
 });
 
-export const promptVersions = pgTable('prompt_versions', {
+export const promptVersions = sleepy.table('prompt_versions', {
   id: serial('id').primaryKey(),
   name: text('name').notNull().unique(),
   systemPrompt: text('system_prompt').notNull(),
@@ -105,7 +108,7 @@ export const promptVersions = pgTable('prompt_versions', {
   createdBy: text('created_by'),
 });
 
-export const posts = pgTable(
+export const posts = sleepy.table(
   'posts',
   {
     id: serial('id').primaryKey(),
@@ -143,7 +146,7 @@ export const posts = pgTable(
   ],
 );
 
-export const postDiscoveries = pgTable(
+export const postDiscoveries = sleepy.table(
   'post_discoveries',
   {
     id: serial('id').primaryKey(),
@@ -160,7 +163,7 @@ export const postDiscoveries = pgTable(
   (t) => [unique('post_discoveries_route').on(t.postId, t.path, t.keywordId).nullsNotDistinct()],
 );
 
-export const evaluations = pgTable('evaluations', {
+export const evaluations = sleepy.table('evaluations', {
   id: serial('id').primaryKey(),
   postId: integer('post_id')
     .notNull()
@@ -187,7 +190,7 @@ export const evaluations = pgTable('evaluations', {
   createdAt: ts('created_at').notNull().defaultNow(),
 });
 
-export const settings = pgTable('settings', {
+export const settings = sleepy.table('settings', {
   key: text('key').primaryKey(),
   value: jsonb('value').notNull(),
   updatedAt: ts('updated_at').notNull().defaultNow(),
