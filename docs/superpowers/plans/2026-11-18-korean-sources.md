@@ -2,7 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans (user chose inline). Steps use checkbox (`- [ ]`) syntax.
 
-**Goal:** 허용 조사를 통과한 4개 사이트(오늘의유머, 에펨코리아, 루리웹, 인벤)의 인기글을 실제로 수집해 기존 흐름(평가 → 공개)에 태운다.
+**Goal:** 허용 조사를 통과한 6개 사이트(오늘의유머, 에펨코리아, 루리웹, 인벤, 클리앙, 웃긴대학)의 글을 실제로 수집해 기존 흐름(평가 → 공개)에 태운다.
+
+> **변경(2026-11-18, 구현 중):** 사용자가 "되는 곳은 모두" 하기로 해서 클리앙·웃긴대학을 추가(Task 6b). 더쿠는 봇에 CAPTCHA를 돌려줘 미지원. 웃긴대학이 EUC-KR이라 HTTP 클라이언트에 문자셋 처리 추가(Task 6b).
 
 **Architecture:** 계획 1의 어댑터 인터페이스에 사이트별 어댑터 4개를 추가한다. 목록의 시각이 부정확한 사이트는 새 글만 글 페이지를 열어 정확한 작성 시각을 얻는다. 한 번 판정한 글은 `seen_items`에 기록해 다시 열지 않는다.
 
@@ -95,6 +97,14 @@
 - 루리웹 목록 `tr.table_body`(공지 제외): `a.subject_link` href, 제목 텍스트(앞의 순번 숫자 제거), `td.time`(`16:54` 또는 `YY.MM.DD`) → `parseKstListTime`. 정규 URL은 쿼리 제거 `https://bbs.ruliweb.com/best/board/<board>/read/<id>`. 글: 제목 `.subject_inner_text`, 시각 `.regdate`(`2026.11.18 (16:54:40)`), 본문 `.view_content`. 목록 시각이 분 단위로 정확하므로 `needsDetail: false`.
 - 인벤 목록 `table tbody tr`: `a.subject-link`(카테고리 `span.category` 제외한 텍스트가 제목), `td.date`. 정규 URL `https://www.inven.co.kr/board/<group>/<board>/<id>`(쿼리 제거). 글: 제목 `.articleTitle h1`, 시각 `.articleDate`, 본문 `#powerbbsContent`. `needsDetail: false`.
 - [ ] 테스트: 각 목록·글 파싱, 정규 URL, 공지·광고 행 제외.
+
+### Task 6b: 클리앙·웃긴대학 어댑터와 문자셋 처리
+
+**Files:** Modify `src/lib/http.ts`(+test), Create `src/sources/clien.ts`, `src/sources/humoruniv.ts`, fixtures, tests
+
+- HTTP 클라이언트: `Content-Type` 헤더의 charset, 없으면 문서 앞부분 `<meta charset>`으로 디코딩(EUC-KR 지원). 테스트: EUC-KR 바이트 → 올바른 한글.
+- 클리앙: 목록 `.list_item.symph_row`(공지 `.notice` 제외), 링크 `a.list_subject`(쿼리 제거 → `/service/board/park/<id>`), 제목 `.subject_fixed`, 시각 `.list_time .timestamp`(`YYYY-MM-DD HH:MM:SS`, exact) → `needsDetail: false`. 글(봇용 단순 페이지): 제목 `article.post h1`, 시각 첫 `time[datetime]`, 본문 `article.post .content`. 인기글이 아닌 최신 목록이다(추천글 경로 금지).
+- 웃긴대학: 목록 `table#post_list tr` 중 `a[href^="read.html?table=pds&number="]`가 있는 행, 제목 `span[id^=title_chk_]`. 목록 시각은 "웃긴자료로 이동된 시각"이라 `needsDetail: true`. 글: 제목 `#ai_cm_title`, 시각 = "작성: YYYY-MM-DD HH:MM:SS" 문구, 본문 `#wrap_copy`(style·script 제거). 정규 URL `https://web.humoruniv.com/board/humor/read.html?table=pds&number=<n>`.
 
 ### Task 7: 소스 보호와 구조 변경 감지
 

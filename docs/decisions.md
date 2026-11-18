@@ -22,3 +22,5 @@
 - 2026-11-18 docker-compose.yml은 배포(계획 5)용으로 남겨 둠. 개발에는 사용하지 않음.
 - 2026-11-18 LLM 공급자에 Gemini 추가(@google/genai, 구조화 출력 responseJsonSchema). 설정은 LLM_PROVIDER/LLM_API_KEY/LLM_MODEL/LLM_TEMPERATURE/LLM_TIMEOUT_MS 공통 변수 사용. 실제 호출 1회 검증(gemini-3.1-flash-lite, 약 2초, 입력 768/출력 416 토큰). 기본값은 여전히 fake. (사용자 지시)
 - 2026-11-18 수집 사이트 결정: 인벤, 오늘의유머, 에펨코리아, 루리웹 활성화. DCInside(약관 금지)·MLB PARK(robots 금지)·뽐뿌(403 차단)는 미지원. 클리앙·더쿠·웃긴대학은 미선택(검토 대기). Reddit 보류. 근거는 docs/sources.md. (사용자 결정)
+- 2026-11-18 DCInside를 브라우저 자동화(Selenium 등)로 수집하자는 요청은 거절함: 약관 제11조13호·제16조 위반이며 지시서의 우회 금지 원칙과 충돌. 대안(수동 등록, 서면 동의 요청)은 사용자 결정 대기. DC는 UNSUPPORTED 유지.
+- 2026-11-18 '되는 곳은 모두' 결정에 따라 클리앙(일반 게시판 최신 목록)·웃긴대학(웃긴자료 목록) 추가 활성화. 더쿠는 봇 요청에 CAPTCHA를 돌려줘 미지원으로 변경. (사용자 결정 + 접근 확인)

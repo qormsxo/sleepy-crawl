@@ -27,7 +27,8 @@ describe('seed: Korean sources (docs/sources.md)', () => {
     const all = await db.select().from(sources);
     expect(all).toHaveLength(12); // fixture + 10 Korean + reddit
     const active = all.filter((s) => s.status === 'ACTIVE' && s.key !== 'fixture').map((s) => s.key).sort();
-    expect(active).toEqual(['fmkorea', 'inven', 'ruliweb', 'todayhumor']);
+    expect(active).toEqual(['clien', 'fmkorea', 'humoruniv', 'inven', 'ruliweb', 'todayhumor']);
+    expect(all.find((s) => s.key === 'theqoo')).toMatchObject({ status: 'UNSUPPORTED' });
     for (const s of all.filter((x) => active.includes(x.key))) {
       expect((s.config as { lists?: string[] }).lists?.length).toBeGreaterThan(0);
     }

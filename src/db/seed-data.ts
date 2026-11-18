@@ -137,13 +137,23 @@ export const KOREAN_SOURCES: SourceSeed[] = [
     policyCheckedAt: CHECKED, timezone: 'Asia/Seoul',
     config: { lists: ['https://www.inven.co.kr/board/webzine/2097?my=chu'] },
   },
+  {
+    key: 'clien', name: '클리앙', region: 'KR', adapterKey: 'clien', status: 'ACTIVE',
+    statusReason: '사용자 승인(2026-11-18): 되는 곳 모두', policyNotes: '추천글 경로와 쿼리 주소는 쓰지 않음(robots 의도 존중). 약관 제13조③ 주의.',
+    policyCheckedAt: CHECKED, timezone: 'Asia/Seoul',
+    config: { lists: ['https://www.clien.net/service/board/park'] },
+  },
+  {
+    key: 'humoruniv', name: '웃긴대학', region: 'KR', adapterKey: 'humoruniv', status: 'ACTIVE',
+    statusReason: '사용자 승인(2026-11-18): 되는 곳 모두', policyNotes: '베스트 게시판·*.php는 robots 금지 → 웃긴자료(pds) 목록만. EUC-KR. 약관 제13조② 주의.',
+    policyCheckedAt: CHECKED, timezone: 'Asia/Seoul',
+    config: { lists: ['https://web.humoruniv.com/board/humor/list.html?table=pds'] },
+  },
   ...([
     ['dcinside', 'DCInside', '약관 제16조: 사전 서면 동의 없는 크롤링 명시적 금지'],
     ['mlbpark', 'MLB PARK', 'robots.txt가 일반 봇 전면 금지(Disallow: /)'],
     ['ppomppu', '뽐뿌', '첫 페이지부터 403 차단(우회하지 않음)'],
-    ['clien', '클리앙', '검토 대기: 사용자 미선택. 추천글 경로·쿼리 금지, 약관 제13조③'],
-    ['theqoo', '더쿠', '검토 대기: 사용자 미선택. AI 크롤러 차단, Content-Signal ai-train=no'],
-    ['humoruniv', '웃긴대학', '검토 대기: 사용자 미선택. 베스트 게시판 robots 금지'],
+    ['theqoo', '더쿠', '봇 요청에 보안 검사(CAPTCHA) 페이지로 차단(우회하지 않음)'],
   ] as const).map(([key, name, reason]): SourceSeed => ({
     key, name, region: 'KR', adapterKey: key, status: 'UNSUPPORTED', statusReason: reason,
     policyNotes: 'docs/sources.md 참고', policyCheckedAt: CHECKED, timezone: 'Asia/Seoul', config: {},
