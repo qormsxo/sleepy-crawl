@@ -190,6 +190,20 @@ export const evaluations = sleepy.table('evaluations', {
   createdAt: ts('created_at').notNull().defaultNow(),
 });
 
+/** List items already judged (e.g. out of window) so their pages are never fetched again. */
+export const seenItems = sleepy.table(
+  'seen_items',
+  {
+    sourceId: integer('source_id')
+      .notNull()
+      .references(() => sources.id),
+    externalId: text('external_id').notNull(),
+    outcome: text('outcome').notNull(),
+    seenAt: ts('seen_at').notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('seen_items_source_external').on(t.sourceId, t.externalId)],
+);
+
 export const settings = sleepy.table('settings', {
   key: text('key').primaryKey(),
   value: jsonb('value').notNull(),

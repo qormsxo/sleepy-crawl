@@ -12,7 +12,12 @@ export type RawPost = {
   comments?: string[];
 };
 
-export type ParsedPost = RawPost & { postedAt: Date | null; precision: TimePrecision | null };
+export type ParsedPost = RawPost & {
+  postedAt: Date | null;
+  precision: TimePrecision | null;
+  /** The list's time can't be trusted (e.g. "4 시간 전", or a "moved to best" time): open the post page to confirm it. */
+  needsDetail?: boolean;
+};
 
 export interface SourceContext {
   http: HttpClient;
