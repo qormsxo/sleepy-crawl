@@ -12,7 +12,10 @@ export default function Home({ searchParams }: { searchParams: SearchParams }) {
   return (
     <main className="mx-auto w-full max-w-2xl px-4 py-8">
       <header className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-100">Sleepy Crawler</h1>
+        <div className="flex items-baseline justify-between gap-4">
+          <h1 className="text-2xl font-bold text-slate-100">Sleepy Crawler</h1>
+          <Link href="/submit" className="text-sm text-indigo-300 hover:underline">제보하기</Link>
+        </div>
         <p className="mt-1 text-sm text-slate-400">
           밤 11시부터 새벽 3시 사이, 인터넷 어딘가에 올라온 이상하고 엉뚱한 글들. AI가 골랐습니다.
         </p>
