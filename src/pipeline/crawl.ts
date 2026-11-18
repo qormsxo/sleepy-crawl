@@ -75,7 +75,9 @@ export async function crawlSource(db: DB, sourceId: number, deps: CrawlDeps): Pr
         ),
       );
     const ctx = { http, config: source.config, now, timezone: tz };
-    const maxDetail = await getSetting(db, 'max_detail_fetches_per_run', 20);
+    // A source can lower the cap in its config (e.g. a site that throttles post pages hard).
+    const configured = (source.config as { maxDetailFetches?: unknown }).maxDetailFetches;
+    const maxDetail = typeof configured === 'number' ? configured : await getSetting(db, 'max_detail_fetches_per_run', 20);
     let detailFetches = 0;
 
     for await (const listed of adapter.listPopular(ctx)) {

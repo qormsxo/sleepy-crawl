@@ -130,3 +130,13 @@ describe('crawlSource with needsDetail', () => {
     expect(await db.select().from(seenItems)).toHaveLength(0); // h is retried next run
   });
 });
+
+describe('per-source page-fetch cap', () => {
+  it('uses config.maxDetailFetches over the global setting', async () => {
+    await db.update(sources).set({ config: { maxDetailFetches: 1 } }).where(eq(sources.id, sourceId));
+    const items = ['p1', 'p2'].map((id) => ({ id, listTime: NOW, realTime: IN_WINDOW, needsDetail: true }));
+    const { adapter, calls } = fakeAdapter(items);
+    await crawlSource(db, sourceId, { adapter, now: NOW, enqueueEval });
+    expect(calls).toEqual(['p1']);
+  });
+});

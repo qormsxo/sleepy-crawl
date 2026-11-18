@@ -123,7 +123,8 @@ export const KOREAN_SOURCES: SourceSeed[] = [
     key: 'fmkorea', name: '에펨코리아', region: 'KR', adapterKey: 'fmkorea', status: 'ACTIVE',
     statusReason: '사용자 승인(2026-11-18)', policyNotes: 'robots는 /best, /best2, /humor만 허용. 약관 제11조17호·제13조② 주의.',
     policyCheckedAt: CHECKED, timezone: 'Asia/Seoul',
-    config: { lists: ['https://www.fmkorea.com/best'] },
+    // Post pages answer HTTP 430 after a few requests: keep page fetches per run low.
+    config: { lists: ['https://www.fmkorea.com/best'], maxDetailFetches: 3 },
   },
   {
     key: 'ruliweb', name: '루리웹', region: 'KR', adapterKey: 'ruliweb', status: 'ACTIVE',

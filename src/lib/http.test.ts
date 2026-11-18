@@ -167,3 +167,13 @@ describe('character sets', () => {
     expect((await http.get('https://ex.com/a')).text).toContain('새벽');
   });
 });
+
+describe('site-specific throttling responses', () => {
+  it("treats fmkorea's HTTP 430 (too many requests) as blocked, without retrying", async () => {
+    const f = fakeFetch((u) => (u.endsWith('/robots.txt') ? { status: 404 } : { status: 430 }));
+    const c = clock();
+    const http = createHttpClient({ ...base, fetchImpl: f.impl, now: c.now, sleep: c.sleep });
+    await expect(http.get('https://ex.com/p')).rejects.toBeInstanceOf(HttpBlockedError);
+    expect(f.calls.filter((u) => u.endsWith('/p'))).toHaveLength(1);
+  });
+});

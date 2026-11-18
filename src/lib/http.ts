@@ -36,6 +36,8 @@ const ROBOTS_TTL_MS = 24 * 60 * 60 * 1000;
 /** Shorter cache when robots.txt itself failed, so a transient outage doesn't pause a source for a day. */
 const ROBOTS_ERROR_TTL_MS = 60 * 60 * 1000;
 const MAX_REDIRECTS = 3;
+/** "Stop asking": 403/429, plus fmkorea's non-standard 430 (too many requests). Never retried. */
+const BLOCKED_STATUSES = new Set([403, 429, 430]);
 
 /** Minimal robots.txt parser: groups for `*` and our UA token, Allow/Disallow prefixes. */
 export function parseRobots(body: string, userAgent: string): RobotsRules {
@@ -170,7 +172,7 @@ export function createHttpClient(opts: HttpClientOptions): HttpClient {
         if (attempt > 0) await sleep(1000 * 2 ** (attempt - 1));
         try {
           const res = await rawGet(url);
-          if (res.status === 429 || res.status === 403) throw new HttpBlockedError(url, res.status);
+          if (BLOCKED_STATUSES.has(res.status)) throw new HttpBlockedError(url, res.status);
           const location = res.headers.get('location');
           if (res.status >= 300 && res.status < 400 && location) {
             if (hops >= MAX_REDIRECTS) throw new Error(`too many redirects: ${url}`);
