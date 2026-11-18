@@ -1,0 +1,114 @@
+[
+  {
+    "externalId": "1",
+    "url": "https://fixture.local/p/1",
+    "title": "새벽에 냉장고 문 열었는데 계란이랑 눈 마주침",
+    "bodyText": "물 마시러 나왔다가 냉장고를 열었는데 계란 한 판이 나를 일제히 쳐다보는 느낌이 들었다. 그래서 정중하게 인사하고 문을 닫았다. 지금 30분째 다시 열 용기가 안 남.",
+    "postedAtRaw": "2026-11-18T23:00:00+09:00",
+    "comments": ["계란한테 인사한 건 잘했다", "그 계란 내일 아침에 너 먹음"]
+  },
+  {
+    "externalId": "2",
+    "url": "https://fixture.local/p/2",
+    "title": "자정 되자마자 인생 계획 세움",
+    "bodyText": "00시 정각에 결심했다. 내일부터 매일 아침 6시에 일어나서 줄넘기 천 개를 하고, 일본어를 배우고, 양봉을 시작한다. 양봉은 왜 들어갔는지 모르겠음.",
+    "postedAtRaw": "2026-11-19T00:00:00+09:00",
+    "comments": ["양봉에서 무너짐", "벌은 무슨 죄야"]
+  },
+  {
+    "externalId": "3",
+    "url": "https://fixture.local/p/3",
+    "title": "3시 되기 직전에 깨달은 사실",
+    "bodyText": "펭귄도 무릎이 있다고 한다. 그동안 펭귄이 무릎 없이 산다고 생각해서 미안했다. 지금 펭귄한테 사과문 쓰는 중.",
+    "postedAtRaw": "2026-11-19T02:59:59+09:00",
+    "comments": ["사과문 올려줘"]
+  },
+  {
+    "externalId": "4",
+    "url": "https://fixture.local/p/4",
+    "title": "잠이 안 온다 그래서 양말 짝 맞추기 대회 개최함",
+    "bodyText": "참가자는 나 혼자. 결승까지 올라갔는데 마지막 한 짝이 없어서 준우승함. 우승자는 세탁기로 추정.",
+    "postedAtRaw": "2026-11-18T23:41:00+09:00",
+    "comments": ["세탁기 2연패 축하"]
+  },
+  {
+    "externalId": "5",
+    "url": "https://fixture.local/p/5",
+    "title": "문득 엘리베이터 거울 속 나도 퇴근하고 싶을까 생각함",
+    "bodyText": "매일 나랑 같이 출근하는데 월급은 내가 다 받는다. 거울 속 나한테 반띵해줘야 하나 고민 중.",
+    "postedAtRaw": "2026-11-19T01:12:00+09:00",
+    "comments": []
+  },
+  {
+    "externalId": "6",
+    "url": "https://fixture.local/p/6",
+    "title": "편의점 삼각김밥 비닐 한 번에 뜯는 법 연구 3시간째",
+    "bodyText": "1번 2번 3번 순서대로 했는데 김이 항상 찢어진다. 이건 내 손의 문제가 아니라 김의 의지라고 결론 내림. 내일은 김이랑 대화 시도해본다.",
+    "postedAtRaw": "2026-11-19T01:47:00+09:00",
+    "comments": ["김의 의지 ㅋㅋ"]
+  },
+  {
+    "externalId": "7",
+    "url": "https://fixture.local/p/7",
+    "title": "오늘따라 천장 무늬가 고양이로 보임",
+    "bodyText": "누워서 보니까 천장 얼룩이 고양이 같다. 이름도 지어줌. 천장이. 이제 잘 때마다 천장이한테 잘 자라고 함.",
+    "postedAtRaw": "2026-11-19T00:33:00+09:00",
+    "comments": []
+  },
+  {
+    "externalId": "8",
+    "url": "https://fixture.local/p/8",
+    "title": "<script>alert(1)</script> 이거 넣으면 해킹되는 거 맞음?",
+    "bodyText": "친구가 이거 제목에 쓰면 사이트 다 터진다고 해서 해봄. 아무 일도 안 일어나서 친구한테 사기당한 기분.",
+    "postedAtRaw": "2026-11-19T02:10:00+09:00",
+    "comments": []
+  },
+  {
+    "externalId": "9",
+    "url": "https://fixture.local/p/9",
+    "title": "저녁 먹고 산책했는데 날씨 좋네요",
+    "bodyText": "평범한 저녁 산책 후기입니다.",
+    "postedAtRaw": "2026-11-18T22:59:59+09:00",
+    "comments": []
+  },
+  {
+    "externalId": "10",
+    "url": "https://fixture.local/p/10",
+    "title": "아침형 인간 되기 첫날",
+    "bodyText": "3시에 일어났습니다. 아침인지 밤인지 모르겠어요.",
+    "postedAtRaw": "2026-11-19T03:00:00+09:00",
+    "comments": []
+  },
+  {
+    "externalId": "11",
+    "url": "https://fixture.local/p/11",
+    "title": "시간 표시가 안 되는 글",
+    "bodyText": "작성 시각을 알 수 없는 샘플입니다.",
+    "postedAtRaw": null,
+    "comments": []
+  },
+  {
+    "externalId": "1",
+    "url": "https://fixture.local/p/1?utm_source=share",
+    "title": "새벽에 냉장고 문 열었는데 계란이랑 눈 마주침",
+    "bodyText": "중복 노출된 같은 글.",
+    "postedAtRaw": "2026-11-18T23:00:00+09:00",
+    "comments": []
+  },
+  {
+    "externalId": "12",
+    "url": "https://fixture.local/p/12",
+    "title": "",
+    "bodyText": "",
+    "postedAtRaw": "2026-11-19T01:00:00+09:00",
+    "comments": []
+  },
+  {
+    "externalId": "13",
+    "url": "https://fixture.local/p/13",
+    "title": "미래에서 온 글",
+    "bodyText": "작성 시각이 미래로 찍힌 샘플입니다.",
+    "postedAtRaw": "9999-01-01T00:00:00+09:00",
+    "comments": []
+  }
+]
