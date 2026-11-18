@@ -5,6 +5,7 @@ import { posts, sources } from '../db/schema';
 import { crawlSource } from '../pipeline/crawl';
 import { evaluatePost } from '../pipeline/evaluate';
 import { createLlmClient } from '../llm';
+import { parseCliArgs } from './cli-args';
 
 /**
  * Manual runs without the queue.
@@ -12,12 +13,7 @@ import { createLlmClient } from '../llm';
  *   eval  [--now ISO]                       evaluate every PENDING_EVAL post
  */
 async function main() {
-  const args = process.argv.slice(2);
-  const nowIdx = args.indexOf('--now');
-  const now = nowIdx >= 0 ? new Date(args[nowIdx + 1]) : new Date();
-  if (Number.isNaN(now.getTime())) throw new Error('invalid --now');
-  const positional = args.filter((_, i) => i !== nowIdx && i !== nowIdx + 1);
-  const [command, sourceKey = 'fixture'] = positional;
+  const { command, sourceKey, now } = parseCliArgs(process.argv.slice(2));
 
   const db = getDb();
   const llm = createLlmClient();
