@@ -81,6 +81,10 @@ export const INITIAL_SETTINGS: Record<string, unknown> = {
   crawl_interval_minutes: 10,
   preview_max_chars: 120,
   daily_eval_limit: 1000,
+  // Popular lists lag hours behind: keep checking them after the night window (post-time filter unchanged).
+  followup_until_hour: 15,
+  followup_interval_minutes: 30,
+  max_detail_fetches_per_run: 20,
 };
 
 export const FIXTURE_SOURCE = {
@@ -92,3 +96,61 @@ export const FIXTURE_SOURCE = {
   statusReason: '개발/데모용 샘플 데이터',
   timezone: 'Asia/Seoul',
 };
+
+const CHECKED = new Date('2026-11-18T00:00:00+09:00');
+type SourceSeed = {
+  key: string;
+  name: string;
+  region: 'KR' | 'GLOBAL';
+  adapterKey: string;
+  status: 'ACTIVE' | 'UNSUPPORTED' | 'PENDING_APPROVAL';
+  statusReason: string;
+  policyNotes: string;
+  policyCheckedAt: Date;
+  timezone: string;
+  config: Record<string, unknown>;
+};
+
+/** 수집 대상 조사 결과 (docs/sources.md, 2026-11-18). 관리자가 이후 변경할 수 있다. */
+export const KOREAN_SOURCES: SourceSeed[] = [
+  {
+    key: 'todayhumor', name: '오늘의유머', region: 'KR', adapterKey: 'todayhumor', status: 'ACTIVE',
+    statusReason: '사용자 승인(2026-11-18)', policyNotes: 'robots 사실상 전부 허용. 약관 원문 미확인.',
+    policyCheckedAt: CHECKED, timezone: 'Asia/Seoul',
+    config: { lists: ['https://www.todayhumor.co.kr/board/list.php?table=bestofbest', 'https://www.todayhumor.co.kr/board/list.php?table=humorbest'] },
+  },
+  {
+    key: 'fmkorea', name: '에펨코리아', region: 'KR', adapterKey: 'fmkorea', status: 'ACTIVE',
+    statusReason: '사용자 승인(2026-11-18)', policyNotes: 'robots는 /best, /best2, /humor만 허용. 약관 제11조17호·제13조② 주의.',
+    policyCheckedAt: CHECKED, timezone: 'Asia/Seoul',
+    config: { lists: ['https://www.fmkorea.com/best'] },
+  },
+  {
+    key: 'ruliweb', name: '루리웹', region: 'KR', adapterKey: 'ruliweb', status: 'ACTIVE',
+    statusReason: '사용자 승인(2026-11-18)', policyNotes: '검색·정렬 파라미터 금지. 약관 제13조①2호(영리·비영리 복제 제한) 주의.',
+    policyCheckedAt: CHECKED, timezone: 'Asia/Seoul',
+    config: { lists: ['https://bbs.ruliweb.com/best/humor_only'] },
+  },
+  {
+    key: 'inven', name: '인벤', region: 'KR', adapterKey: 'inven', status: 'ACTIVE',
+    statusReason: '사용자 승인(2026-11-18)', policyNotes: '검색만 금지. 약관에 크롤링 금지 조항 없음.',
+    policyCheckedAt: CHECKED, timezone: 'Asia/Seoul',
+    config: { lists: ['https://www.inven.co.kr/board/webzine/2097?my=chu'] },
+  },
+  ...([
+    ['dcinside', 'DCInside', '약관 제16조: 사전 서면 동의 없는 크롤링 명시적 금지'],
+    ['mlbpark', 'MLB PARK', 'robots.txt가 일반 봇 전면 금지(Disallow: /)'],
+    ['ppomppu', '뽐뿌', '첫 페이지부터 403 차단(우회하지 않음)'],
+    ['clien', '클리앙', '검토 대기: 사용자 미선택. 추천글 경로·쿼리 금지, 약관 제13조③'],
+    ['theqoo', '더쿠', '검토 대기: 사용자 미선택. AI 크롤러 차단, Content-Signal ai-train=no'],
+    ['humoruniv', '웃긴대학', '검토 대기: 사용자 미선택. 베스트 게시판 robots 금지'],
+  ] as const).map(([key, name, reason]): SourceSeed => ({
+    key, name, region: 'KR', adapterKey: key, status: 'UNSUPPORTED', statusReason: reason,
+    policyNotes: 'docs/sources.md 참고', policyCheckedAt: CHECKED, timezone: 'Asia/Seoul', config: {},
+  })),
+  {
+    key: 'reddit', name: 'Reddit', region: 'GLOBAL', adapterKey: 'reddit', status: 'PENDING_APPROVAL',
+    statusReason: '사용자 보류(2026-11-18): 공식 API 승인과 시간대 정책 미정',
+    policyNotes: '공식 API만 사용 예정', policyCheckedAt: CHECKED, timezone: 'America/New_York', config: {},
+  },
+];

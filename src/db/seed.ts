@@ -1,6 +1,6 @@
 import type { DB } from './client';
 import { keywords, promptVersions, settings, sources } from './schema';
-import { FIXTURE_SOURCE, INITIAL_MIDNIGHT_KEYWORDS, INITIAL_SETTINGS, PROMPT_V1 } from './seed-data';
+import { FIXTURE_SOURCE, INITIAL_MIDNIGHT_KEYWORDS, INITIAL_SETTINGS, KOREAN_SOURCES, PROMPT_V1 } from './seed-data';
 
 /** Idempotent: safe to run repeatedly. Never overwrites admin edits. */
 export async function seed(db: DB): Promise<void> {
@@ -16,5 +16,5 @@ export async function seed(db: DB): Promise<void> {
     .values(Object.entries(INITIAL_SETTINGS).map(([key, value]) => ({ key, value })))
     .onConflictDoNothing();
 
-  await db.insert(sources).values(FIXTURE_SOURCE).onConflictDoNothing();
+  await db.insert(sources).values([FIXTURE_SOURCE, ...KOREAN_SOURCES]).onConflictDoNothing();
 }
