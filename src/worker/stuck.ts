@@ -1,6 +1,6 @@
 import { and, eq, lt } from 'drizzle-orm';
 import type { DB } from '../db/client';
-import { posts } from '../db/schema';
+import { posts, submissions } from '../db/schema';
 
 /**
  * Posts still waiting for evaluation long after collection: their job was lost (enqueue failed)
@@ -14,5 +14,16 @@ export async function findStuckPending(db: DB, now: Date, olderThanMin: number):
     .where(and(eq(posts.status, 'PENDING_EVAL'), lt(posts.collectedAt, cutoff)))
     .orderBy(posts.id)
     .limit(200);
+  return rows.map((r) => r.id);
+}
+
+/** Submissions waiting to be processed, oldest first. */
+export async function findReceivedSubmissions(db: DB, limit: number): Promise<number[]> {
+  const rows = await db
+    .select({ id: submissions.id })
+    .from(submissions)
+    .where(eq(submissions.status, 'RECEIVED'))
+    .orderBy(submissions.createdAt)
+    .limit(limit);
   return rows.map((r) => r.id);
 }

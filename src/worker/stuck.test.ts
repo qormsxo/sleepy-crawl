@@ -22,3 +22,20 @@ describe('findStuckPending', () => {
     expect(await findStuckPending(db, now, 15)).toEqual([old.id]);
   });
 });
+
+describe('findReceivedSubmissions', () => {
+  it('returns RECEIVED submissions oldest first, at most `limit`', async () => {
+    const { submissions } = await import('@/db/schema');
+    const { findReceivedSubmissions } = await import('./stuck');
+    const db = await createTestDb();
+    await seed(db);
+    const mk = (status: 'RECEIVED' | 'PROCESSED', minutesAgo: number) =>
+      db.insert(submissions).values({ url: 'u', ipHash: 'h', mode: 'auto', status, createdAt: new Date(Date.now() - minutesAgo * 60_000) }).returning({ id: submissions.id });
+    const [a] = await mk('RECEIVED', 10);
+    const [b] = await mk('RECEIVED', 20);
+    await mk('PROCESSED', 30);
+    const [c] = await mk('RECEIVED', 5);
+    expect(await findReceivedSubmissions(db, 2)).toEqual([b.id, a.id]);
+    expect(await findReceivedSubmissions(db, 10)).toEqual([b.id, a.id, c.id]);
+  });
+});

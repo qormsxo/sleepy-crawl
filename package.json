@@ -13,7 +13,8 @@
     "db:migrate": "tsx src/db/migrate.ts",
     "db:seed": "tsx src/db/seed-cli.ts",
     "crawl:once": "tsx src/worker/cli.ts crawl",
-    "eval:pending": "tsx src/worker/cli.ts eval"
+    "eval:pending": "tsx src/worker/cli.ts eval",
+    "submissions:process": "tsx src/worker/cli.ts submissions"
   },
   "dependencies": {
     "@google/genai": "^3.6.0",

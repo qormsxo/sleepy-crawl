@@ -9,11 +9,13 @@ import { logger } from '../lib/logger';
 import { findDueSources } from './scheduler';
 import { evalBudgetResumeAt } from './eval-budget';
 import { QUEUES, QUEUE_OPTIONS } from './queues';
-import { findStuckPending } from './stuck';
+import { findReceivedSubmissions, findStuckPending } from './stuck';
+import { processSubmission } from '../submissions/process';
 import { posts } from '../db/schema';
 import { eq } from 'drizzle-orm';
 
 const STUCK_AFTER_MIN = 15;
+const SUBMISSIONS_PER_TICK = 10;
 
 type CrawlJob = { sourceId: number };
 type EvalJob = { postId: number };
@@ -71,10 +73,19 @@ async function main() {
     for (const sourceId of due) {
       await boss.send(QUEUES.crawl, { sourceId } satisfies CrawlJob, { singletonKey: `crawl:${sourceId}` });
     }
+    // Anonymous submissions are stored by the web app and processed here (the web has no queue).
+    const received = await findReceivedSubmissions(db, SUBMISSIONS_PER_TICK);
+    for (const id of received) {
+      try {
+        await processSubmission(db, id, { now: new Date(), llm, enqueueEval });
+      } catch (err) {
+        logger.error({ err, submissionId: id }, 'submission processing failed');
+      }
+    }
     // Jobs can be lost or give up (long outage, source pause): pick their posts up again.
     const stuck = await findStuckPending(db, new Date(), STUCK_AFTER_MIN);
     for (const postId of stuck) await enqueueEval(postId);
-    logger.info({ due, requeued: stuck.length }, 'tick');
+    logger.info({ due, requeued: stuck.length, submissions: received.length }, 'tick');
   });
 
   logger.info('worker started');
