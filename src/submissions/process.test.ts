@@ -132,7 +132,7 @@ describe('processSubmission (manual, DCInside)', () => {
     expect(s).toMatchObject({ status: 'PROCESSED', manualExcerpt: null });
     const [p] = await db.select().from(posts).where(eq(posts.id, s.postId!));
     expect(p).toMatchObject({ title: '새벽에 쓴 시', requiresReview: true, status: 'REVIEW', primaryPath: 'USER_SUBMISSION', postedAtPrecision: 'approximate' });
-    expect(p.preview).toContain('냉장고 불빛');
+    expect(p.preview).toBe(''); // user decision: nothing typed by the submitter is kept, not even a preview
     expect(llm.seen[0].user).toContain('내용도 계란');
     expect(enqueued).toEqual([]);
   });

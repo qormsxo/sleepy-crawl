@@ -198,3 +198,14 @@ describe('evaluatePost never contacts manual-submission sources', () => {
     expect(fetched).toBe(false);
   });
 });
+
+describe('evaluatePost and manual-submission previews', () => {
+  it('never stores a preview from a manual excerpt (user decision 2026-11-19)', async () => {
+    const id = await postId('1');
+    await db.update(sources).set({ config: { manualSubmission: true } }).where(eq(sources.key, 'fixture'));
+    await db.update(posts).set({ preview: '' }).where(eq(posts.id, id));
+    await evaluatePost(db, id, { llm: createFakeLlm([goodEval()]), now: NOW, bodyOverride: '제보자가 입력한 내용입니다. 저장되면 안 됩니다.' });
+    const [p] = await db.select().from(posts).where(eq(posts.id, id));
+    expect(p.preview).toBe('');
+  });
+});

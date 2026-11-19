@@ -84,8 +84,10 @@ export async function evaluatePost(db: DB, postId: number, deps: EvaluateDeps): 
   }
 
   // List pages often carry no body: fill the card preview from the page fetched for evaluation.
+  // Never for manual-submission sources: the submitter's excerpt must not be kept (user decision 2026-11-19).
   const preview =
-    post.preview.trim() || (fetchedBody ? makePreview(fetchedBody, await getSetting(db, 'preview_max_chars', 120)) : '');
+    post.preview.trim() ||
+    (fetchedBody && !manualOnly ? makePreview(fetchedBody, await getSetting(db, 'preview_max_chars', 120)) : '');
 
   const { system, user } = buildPrompt(
     prompt,

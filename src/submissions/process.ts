@@ -151,7 +151,8 @@ async function processManual(db: DB, sub: Sub, source: Source, deps: ProcessDeps
         externalId: sub.externalId,
         url: sub.canonicalUrl!,
         title: sub.manualTitle ?? '',
-        bodyText: sub.manualExcerpt ?? '',
+        // User decision (2026-11-19): nothing the submitter typed is kept, so no preview from the excerpt.
+        bodyText: '',
         postedAtRaw: sub.manualPostedAt?.toISOString() ?? null,
         postedAt: sub.manualPostedAt,
         precision: 'approximate', // typed by a person, unverifiable
