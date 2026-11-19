@@ -12,6 +12,7 @@ vi.mock('next/headers', () => ({
   cookies: async () => ({ get: () => (cookieValue ? { value: cookieValue } : undefined), set: vi.fn(), delete: vi.fn() }),
   headers: async () => new Headers(),
 }));
+vi.mock('next/server', () => ({ connection: async () => {} }));
 vi.mock('next/navigation', () => ({
   redirect: (to: string) => {
     throw new Error(`REDIRECT:${to}`);

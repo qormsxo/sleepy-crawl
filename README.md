@@ -6,7 +6,7 @@
 
 ## 구조
 
-- **web** (Next.js): 공개 피드, 제보(`/submit`), (예정) 관리자 화면
+- **web** (Next.js): 공개 피드, 제보(`/submit`), 관리자(`/admin`)
 - **worker** (Node): 1분마다 실행 대상 소스를 찾아 수집하고, 새 글을 AI로 평가 (pg-boss 작업 큐)
 - **PostgreSQL**: 데이터와 작업 큐
 
@@ -61,10 +61,12 @@ http://localhost:3000 에서 샘플 글 피드를 볼 수 있습니다. 워커�
 | `npm run crawl:once -- <source> [--now ISO]` | 큐 없이 한 번 수집하고 바로 평가. source: `todayhumor`, `fmkorea`, `ruliweb`, `inven`, `clien`, `humoruniv`, `fixture`(개발용) |
 | `npm run eval:pending` | 평가 대기 글 전부 평가 |
 | `npm run submissions:process` | 접수된 제보를 바로 처리 (워커는 매분 자동 처리) |
+| `npm run admin:create -- <email>` | 관리자 계정 생성 (`ADMIN_PASSWORD` 없으면 무작위 비밀번호를 한 번 출력) |
+| `npm run reeval:process` | 관리자가 요청한 재평가를 바로 처리 |
 
 ## 문서
 
 - 설계: [docs/superpowers/specs/2026-11-18-sleepy-crawler-design.md](docs/superpowers/specs/2026-11-18-sleepy-crawler-design.md)
 - 결정 기록: [docs/decisions.md](docs/decisions.md)
 - 수집 대상 조사: [docs/sources.md](docs/sources.md)
-- 단계 보고서: [Phase 1](docs/phases/phase-1.md), [Phase 2](docs/phases/phase-2.md), [Phase 3](docs/phases/phase-3.md)
+- 단계 보고서: [Phase 1](docs/phases/phase-1.md), [Phase 2](docs/phases/phase-2.md), [Phase 3](docs/phases/phase-3.md), [Phase 4](docs/phases/phase-4.md)
