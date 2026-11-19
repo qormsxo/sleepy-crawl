@@ -6,7 +6,7 @@
 
 ## 구조
 
-- **web** (Next.js): 공개 피드, (예정) 제보·관리자 화면
+- **web** (Next.js): 공개 피드, 제보(`/submit`), (예정) 관리자 화면
 - **worker** (Node): 1분마다 실행 대상 소스를 찾아 수집하고, 새 글을 AI로 평가 (pg-boss 작업 큐)
 - **PostgreSQL**: 데이터와 작업 큐
 
@@ -48,6 +48,8 @@ http://localhost:3000 에서 샘플 글 피드를 볼 수 있습니다. 워커�
 | `LLM_MODEL` | 평가에 쓸 모델 이름 |
 | `LLM_TEMPERATURE` | 기본 0 |
 | `LLM_TIMEOUT_MS` | LLM 호출 제한 시간 (기본 60000) |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY` | 제보 봇 확인. 개발에서 비우면 테스트 키 |
+| `IP_HASH_SALT` | 제보자 IP 해시 솔트 (운영 필수) |
 | `LOG_LEVEL` | 로그 수준 (기본 `info`) |
 
 ## 명령
@@ -58,10 +60,11 @@ http://localhost:3000 에서 샘플 글 피드를 볼 수 있습니다. 워커�
 | `npm run db:generate` | 스키마 변경 후 마이그레이션 생성 |
 | `npm run crawl:once -- <source> [--now ISO]` | 큐 없이 한 번 수집하고 바로 평가. source: `todayhumor`, `fmkorea`, `ruliweb`, `inven`, `clien`, `humoruniv`, `fixture`(개발용) |
 | `npm run eval:pending` | 평가 대기 글 전부 평가 |
+| `npm run submissions:process` | 접수된 제보를 바로 처리 (워커는 매분 자동 처리) |
 
 ## 문서
 
 - 설계: [docs/superpowers/specs/2026-11-18-sleepy-crawler-design.md](docs/superpowers/specs/2026-11-18-sleepy-crawler-design.md)
 - 결정 기록: [docs/decisions.md](docs/decisions.md)
 - 수집 대상 조사: [docs/sources.md](docs/sources.md)
-- 단계 보고서: [Phase 1](docs/phases/phase-1.md), [Phase 2](docs/phases/phase-2.md)
+- 단계 보고서: [Phase 1](docs/phases/phase-1.md), [Phase 2](docs/phases/phase-2.md), [Phase 3](docs/phases/phase-3.md)
