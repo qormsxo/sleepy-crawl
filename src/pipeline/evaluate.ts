@@ -50,7 +50,7 @@ export async function evaluatePost(db: DB, postId: number, deps: EvaluateDeps): 
     .where(and(eq(keywords.kind, 'MEME'), eq(keywords.active, true)));
 
   // Never touch a host that told us to back off; the queue retries this job later.
-  if (deps.bodyOverride === undefined && source.pausedUntil && source.pausedUntil > now) {
+  if (deps.bodyOverride === undefined && !(source.config as { manualSubmission?: unknown }).manualSubmission && source.pausedUntil && source.pausedUntil > now) {
     throw new SourcePausedError(source.key, source.pausedUntil);
   }
 
@@ -58,9 +58,13 @@ export async function evaluatePost(db: DB, postId: number, deps: EvaluateDeps): 
   let body = post.preview;
   let fetchedBody: string | null = null;
   let comments: string[] = [];
+  // Sources taking manual submissions (DCInside) must never be requested: their terms forbid crawling.
+  const manualOnly = (source.config as { manualSubmission?: unknown }).manualSubmission === true;
   if (deps.bodyOverride !== undefined) {
     fetchedBody = deps.bodyOverride;
     body = deps.bodyOverride;
+  } else if (manualOnly) {
+    // Re-evaluation without the (erased) excerpt: judge from the stored title and preview only.
   } else try {
     const adapter = deps.adapter ?? getAdapter(source.adapterKey);
     const ctx = { http: deps.http ?? defaultHttpClient(), config: source.config, now, timezone: source.timezone };

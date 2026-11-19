@@ -105,3 +105,22 @@ describe('verifyTurnstile', () => {
     expect(await verifyTurnstile('', null, 'sec', boom)).toBe(false);
   });
 });
+
+describe('clientIpFrom', () => {
+  it('reads the first X-Forwarded-For hop by default (proxy overwrites the header)', async () => {
+    const { clientIpFrom } = await import('./receive');
+    const h = new Headers({ 'x-forwarded-for': '203.0.113.7, 10.0.0.1' });
+    expect(clientIpFrom(h, {})).toBe('203.0.113.7');
+  });
+
+  it('uses the configured header (e.g. CF-Connecting-IP behind Cloudflare)', async () => {
+    const { clientIpFrom } = await import('./receive');
+    const h = new Headers({ 'x-forwarded-for': '6.6.6.6', 'cf-connecting-ip': '198.51.100.9' });
+    expect(clientIpFrom(h, { CLIENT_IP_HEADER: 'cf-connecting-ip' })).toBe('198.51.100.9');
+  });
+
+  it('returns null when the header is missing', async () => {
+    const { clientIpFrom } = await import('./receive');
+    expect(clientIpFrom(new Headers(), {})).toBeNull();
+  });
+});

@@ -2,14 +2,13 @@
 
 import { headers } from 'next/headers';
 import { getDb } from '@/db/client';
-import { hashIp, receiveSubmission, verifyTurnstile } from '@/submissions/receive';
+import { clientIpFrom, hashIp, receiveSubmission, verifyTurnstile } from '@/submissions/receive';
 import { submissionConfig } from '@/lib/submission-config';
 import type { SubmitState } from './SubmitForm';
 
-/** Client IP as seen by the reverse proxy (Caddy sets X-Forwarded-For). Only its salted hash is stored. */
+/** Client IP as seen by the reverse proxy (see clientIpFrom). Only its salted hash is stored. */
 async function clientIp(): Promise<string> {
-  const h = await headers();
-  return h.get('x-forwarded-for')?.split(',')[0]?.trim() || h.get('x-real-ip') || 'unknown';
+  return clientIpFrom(await headers()) ?? 'unknown';
 }
 
 export async function submitAction(_prev: SubmitState, form: FormData): Promise<SubmitState> {
@@ -37,7 +36,11 @@ export async function submitAction(_prev: SubmitState, form: FormData): Promise<
         verifyCaptcha: (token) => verifyTurnstile(token, ip === 'unknown' ? null : ip, config.turnstileSecret),
       },
     );
-    return result.ok ? { status: 'ok' } : { status: 'error', error: result.error, field: result.field };
+    if (result.ok) return { status: 'ok' };
+    // Echo the typed values back so the form keeps them (React resets forms after an action).
+    const keep = ['url', 'note', 'suggestedCategory', 'manualTitle', 'manualPostedAt', 'manualExcerpt'];
+    const values = Object.fromEntries(keep.map((k) => [k, text(k) ?? '']));
+    return { status: 'error', error: result.error, field: result.field, values };
   } catch (err) {
     console.error('submitAction failed', err);
     return { status: 'error', error: 'server' };

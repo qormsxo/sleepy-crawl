@@ -115,3 +115,14 @@ export async function receiveSubmission(
   });
   return { ok: true };
 }
+
+/**
+ * The submitter's IP from request headers. By default the first X-Forwarded-For hop, which is only
+ * trustworthy when the reverse proxy overwrites that header. Behind Cloudflare set
+ * CLIENT_IP_HEADER=cf-connecting-ip. Returns null when absent.
+ */
+export function clientIpFrom(h: Headers, env: Record<string, string | undefined> = process.env): string | null {
+  const name = env.CLIENT_IP_HEADER?.toLowerCase();
+  if (name) return h.get(name)?.split(',')[0]?.trim() || null;
+  return h.get('x-forwarded-for')?.split(',')[0]?.trim() || h.get('x-real-ip')?.trim() || null;
+}

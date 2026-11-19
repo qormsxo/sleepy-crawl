@@ -1,13 +1,22 @@
 import { eq } from 'drizzle-orm';
 import type { DB } from '../db/client';
-import { postDiscoveries, sources, submissions } from '../db/schema';
+import { postDiscoveries, posts, sources, submissions } from '../db/schema';
 import { getAdapter } from '../sources/registry';
 import type { ParsedPost, SourceAdapter } from '../sources/types';
-import type { HttpClient } from '../lib/http';
+import { HttpBlockedError, type HttpClient } from '../lib/http';
 import type { LlmClient } from '../llm/types';
 import { getSetting } from '../lib/settings';
-import { defaultHttpClient, loadActiveKeywords, localDate, lookupKnown, markSeen, storePost } from '../pipeline/crawl';
+import {
+  defaultHttpClient,
+  loadActiveKeywords,
+  localDate,
+  lookupKnown,
+  markSeen,
+  PAUSE_AFTER_BLOCK_MS,
+  storePost,
+} from '../pipeline/crawl';
 import { evaluatePost } from '../pipeline/evaluate';
+import { evalBudgetResumeAt } from '../worker/eval-budget';
 
 export type ProcessDeps = {
   now: Date;
@@ -17,40 +26,42 @@ export type ProcessDeps = {
   adapterFor?: (adapterKey: string) => SourceAdapter;
 };
 
+/** Manual submissions whose evaluation keeps failing are given up after this many attempts. */
+export const MAX_MANUAL_ATTEMPTS = 3;
+
 type Outcome =
   | { status: 'PROCESSED' | 'DUPLICATE'; postId: number }
-  | { status: 'REJECTED'; reason: string };
+  | { status: 'REJECTED'; reason: string }
+  /** Try again on a later tick (source paused/blocked, LLM budget spent, LLM outage). */
+  | { status: 'WAIT' };
+
+type Sub = typeof submissions.$inferSelect;
+type Source = typeof sources.$inferSelect;
 
 /**
  * Turn one RECEIVED submission into a post (or a rejection). Same rules as crawling: night window,
  * max age, dedupe. Auto: the source's own page is fetched through the polite HTTP client. Manual:
- * nothing is fetched; the submitter's excerpt is evaluated once and then erased.
+ * nothing is fetched; the submitter's excerpt is evaluated, then erased once the submission is
+ * finished (success, rejection, or giving up).
  */
 export async function processSubmission(db: DB, id: number, deps: ProcessDeps): Promise<void> {
   const [sub] = await db.select().from(submissions).where(eq(submissions.id, id));
   if (!sub || sub.status !== 'RECEIVED' || !sub.sourceId || !sub.externalId || !sub.canonicalUrl) return;
   const [source] = await db.select().from(sources).where(eq(sources.id, sub.sourceId));
 
-  let outcome: Outcome;
-  try {
-    outcome = sub.mode === 'manual' ? await processManual(db, sub, source, deps) : await processAuto(db, sub, source, deps);
-  } finally {
-    // The manual excerpt is only kept until this point, whatever happened.
-    if (sub.mode === 'manual') await db.update(submissions).set({ manualExcerpt: null }).where(eq(submissions.id, id));
-  }
+  const outcome = sub.mode === 'manual' ? await processManual(db, sub, source, deps) : await processAuto(db, sub, source, deps);
+  if (outcome.status === 'WAIT') return;
 
   await db
     .update(submissions)
     .set({
       status: outcome.status,
       processedAt: deps.now,
+      manualExcerpt: null,
       ...(outcome.status === 'REJECTED' ? { rejectReason: outcome.reason } : { postId: outcome.postId }),
     })
     .where(eq(submissions.id, id));
 }
-
-type Sub = typeof submissions.$inferSelect;
-type Source = typeof sources.$inferSelect;
 
 async function alreadyKnown(db: DB, sub: Sub): Promise<Outcome | null> {
   const known = await lookupKnown(db, sub.sourceId!, sub.externalId!);
@@ -93,15 +104,25 @@ async function store(db: DB, sub: Sub, source: Source, item: ParsedPost, now: Da
 }
 
 async function processAuto(db: DB, sub: Sub, source: Source, deps: ProcessDeps): Promise<Outcome> {
+  // An admin may have disabled the source, or the site may have asked us to back off, since receipt.
+  if (source.status !== 'ACTIVE' && source.status !== 'DEGRADED') return { status: 'REJECTED', reason: 'source_unavailable' };
   const known = await alreadyKnown(db, sub);
   if (known) return known;
+  if (source.pausedUntil && source.pausedUntil > deps.now) return { status: 'WAIT' };
 
   const adapter = (deps.adapterFor ?? getAdapter)(source.adapterKey);
   const ctx = { http: deps.http ?? defaultHttpClient(), config: source.config, now: deps.now, timezone: source.timezone };
   let page: ParsedPost;
   try {
     page = await adapter.fetchPost(ctx, { url: sub.canonicalUrl!, externalId: sub.externalId });
-  } catch {
+  } catch (err) {
+    if (err instanceof HttpBlockedError) {
+      await db
+        .update(sources)
+        .set({ pausedUntil: new Date(deps.now.getTime() + PAUSE_AFTER_BLOCK_MS) })
+        .where(eq(sources.id, source.id));
+      return { status: 'WAIT' };
+    }
     return { status: 'REJECTED', reason: 'fetch_failed' };
   }
   if (!page.postedAt) return { status: 'REJECTED', reason: 'no_time' };
@@ -112,22 +133,48 @@ async function processAuto(db: DB, sub: Sub, source: Source, deps: ProcessDeps):
 }
 
 async function processManual(db: DB, sub: Sub, source: Source, deps: ProcessDeps): Promise<Outcome> {
-  const known = await alreadyKnown(db, sub);
-  if (known) return known;
+  // Evaluating spends LLM budget; if today's is used up, keep the excerpt and try tomorrow.
+  if (await evalBudgetResumeAt(db, deps.now)) return { status: 'WAIT' };
 
-  const item: ParsedPost = {
-    externalId: sub.externalId,
-    url: sub.canonicalUrl!,
-    title: sub.manualTitle ?? '',
-    bodyText: sub.manualExcerpt ?? '',
-    postedAtRaw: sub.manualPostedAt?.toISOString() ?? null,
-    postedAt: sub.manualPostedAt,
-    precision: 'approximate', // typed by a person, unverifiable
-  };
-  const outcome = await store(db, sub, source, item, deps.now, true);
-  if (outcome.status === 'PROCESSED') {
-    // Evaluate now, while the excerpt still exists; it is erased right after.
-    await evaluatePost(db, outcome.postId, { llm: deps.llm, now: deps.now, bodyOverride: sub.manualExcerpt ?? '' });
+  let postId: number;
+  if (sub.postId) {
+    // A previous attempt stored the post but its evaluation failed: retry that post.
+    postId = sub.postId;
+  } else {
+    const known = await alreadyKnown(db, sub);
+    if (known) return known;
+    const outcome = await store(
+      db,
+      sub,
+      source,
+      {
+        externalId: sub.externalId,
+        url: sub.canonicalUrl!,
+        title: sub.manualTitle ?? '',
+        bodyText: sub.manualExcerpt ?? '',
+        postedAtRaw: sub.manualPostedAt?.toISOString() ?? null,
+        postedAt: sub.manualPostedAt,
+        precision: 'approximate', // typed by a person, unverifiable
+      },
+      deps.now,
+      true,
+    );
+    if (outcome.status !== 'PROCESSED') return outcome;
+    postId = outcome.postId;
+    // Remember the post before evaluating so a retry evaluates it instead of calling it a duplicate.
+    await db.update(submissions).set({ postId }).where(eq(submissions.id, sub.id));
   }
-  return outcome;
+
+  const [post] = await db.select({ status: posts.status }).from(posts).where(eq(posts.id, postId));
+  if (post?.status !== 'PENDING_EVAL') return { status: 'PROCESSED', postId };
+
+  try {
+    await evaluatePost(db, postId, { llm: deps.llm, now: deps.now, bodyOverride: sub.manualExcerpt ?? '', rethrowLlmErrors: true });
+    return { status: 'PROCESSED', postId };
+  } catch {
+    const attempts = sub.attempts + 1;
+    if (attempts >= MAX_MANUAL_ATTEMPTS) return { status: 'REJECTED', reason: 'processing_failed' };
+    await db.update(submissions).set({ attempts }).where(eq(submissions.id, sub.id));
+    return { status: 'WAIT' };
+  }
 }

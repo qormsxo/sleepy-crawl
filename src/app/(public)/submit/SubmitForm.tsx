@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useActionState, useEffect, useRef, useState } from 'react';
 import Script from 'next/script';
 import { CATEGORIES } from '@/core/constants';
 import { CATEGORY_LABELS } from '../format';
@@ -8,7 +8,15 @@ import { CATEGORY_LABELS } from '../format';
 export type SubmitState =
   | { status: 'idle' }
   | { status: 'ok' }
-  | { status: 'error'; error: string; field?: string };
+  /** `values` echoes what was typed so a failed submit doesn't wipe the form. */
+  | { status: 'error'; error: string; field?: string; values?: Record<string, string> };
+
+type TurnstileApi = {
+  render(el: HTMLElement, opts: { sitekey: string; theme?: string }): string;
+  reset(id: string): void;
+  remove(id: string): void;
+};
+const turnstileApi = () => (window as unknown as { turnstile?: TurnstileApi }).turnstile;
 
 const MESSAGES: Record<string, string> = {
   captcha: '봇 확인에 실패했어요. 잠시 후 다시 시도해 주세요.',
@@ -43,7 +51,29 @@ export function SubmitForm({
   siteKey: string;
 }) {
   const [state, formAction, pending] = useActionState(action, initialState);
-  const [url, setUrl] = useState('');
+  const values = state.status === 'error' ? (state.values ?? {}) : {};
+  const [url, setUrl] = useState(values.url ?? '');
+  const widgetEl = useRef<HTMLDivElement>(null);
+  const widgetId = useRef<string | null>(null);
+
+  // Explicit rendering: works after client-side navigation, and lets us reset the widget.
+  const renderWidget = () => {
+    const api = turnstileApi();
+    if (!api || !widgetEl.current || widgetId.current) return;
+    widgetId.current = api.render(widgetEl.current, { sitekey: siteKey, theme: 'dark' });
+  };
+  useEffect(() => {
+    renderWidget();
+    return () => {
+      if (widgetId.current) turnstileApi()?.remove(widgetId.current);
+      widgetId.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [siteKey]);
+  // A token is single-use and the server consumed it: get a fresh one after any error.
+  useEffect(() => {
+    if (state.status === 'error' && widgetId.current) turnstileApi()?.reset(widgetId.current);
+  }, [state]);
   const manual = DC_POST.test(url.trim());
   const error = state.status === 'error' ? state : null;
   const errorFor = (name: string) =>
@@ -59,7 +89,7 @@ export function SubmitForm({
 
   return (
     <form action={formAction} className="flex flex-col gap-4">
-      <Script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer />
+      <Script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" onReady={renderWidget} />
       <div>
         <label className={label} htmlFor="url">글 주소</label>
         <input id="url" name="url" type="url" required maxLength={500} value={url} onChange={(e) => setUrl(e.target.value)} className={field} placeholder="https://..." />
@@ -71,17 +101,17 @@ export function SubmitForm({
           <legend className="px-1 text-xs text-amber-200">디시인사이드 글은 직접 입력해 주세요 (사이트에 접속하지 않아요)</legend>
           <div>
             <label className={label} htmlFor="manualTitle">글 제목</label>
-            <input id="manualTitle" name="manualTitle" maxLength={200} required className={field} />
+            <input id="manualTitle" name="manualTitle" maxLength={200} required defaultValue={values.manualTitle} className={field} />
             {errorFor('manualTitle')}
           </div>
           <div>
             <label className={label} htmlFor="manualPostedAt">작성 시각 (한국 시간)</label>
-            <input id="manualPostedAt" name="manualPostedAt" required placeholder="2026-11-19 01:30" className={field} />
+            <input id="manualPostedAt" name="manualPostedAt" required placeholder="2026-11-19 01:30" defaultValue={values.manualPostedAt} className={field} />
             {errorFor('manualPostedAt')}
           </div>
           <div>
             <label className={label} htmlFor="manualExcerpt">내용 일부 (20~1,000자)</label>
-            <textarea id="manualExcerpt" name="manualExcerpt" required minLength={20} maxLength={1000} rows={5} className={field} />
+            <textarea id="manualExcerpt" name="manualExcerpt" required minLength={20} maxLength={1000} rows={5} defaultValue={values.manualExcerpt} className={field} />
             {errorFor('manualExcerpt')}
           </div>
         </fieldset>
@@ -89,12 +119,12 @@ export function SubmitForm({
 
       <div>
         <label className={label} htmlFor="note">왜 웃긴지 한마디 (선택)</label>
-        <textarea id="note" name="note" maxLength={300} rows={2} className={field} />
+        <textarea id="note" name="note" maxLength={300} rows={2} defaultValue={values.note} className={field} />
         {errorFor('note')}
       </div>
       <div>
         <label className={label} htmlFor="suggestedCategory">유형 (선택)</label>
-        <select id="suggestedCategory" name="suggestedCategory" defaultValue="" className={field}>
+        <select id="suggestedCategory" name="suggestedCategory" defaultValue={values.suggestedCategory ?? ''} className={field}>
           <option value="">고르지 않음</option>
           {CATEGORIES.map((c) => (
             <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>
@@ -103,7 +133,7 @@ export function SubmitForm({
         {errorFor('suggestedCategory')}
       </div>
 
-      <div className="cf-turnstile" data-sitekey={siteKey} data-theme="dark" />
+      <div ref={widgetEl} className="cf-turnstile" data-sitekey={siteKey} />
       {error && !error.field && <p className="text-sm text-rose-300">{MESSAGES[error.error] ?? MESSAGES.server}</p>}
 
       <button type="submit" disabled={pending} className="self-start rounded-md bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-500 disabled:opacity-50">

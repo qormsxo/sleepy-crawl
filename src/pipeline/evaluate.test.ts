@@ -187,3 +187,14 @@ describe('evaluatePost and blocked sites', () => {
     expect(p.similarGroupId).not.toBe('title-only');
   });
 });
+
+describe('evaluatePost never contacts manual-submission sources', () => {
+  it('uses only the stored preview for a source with manualSubmission, even if an adapter is given', async () => {
+    const id = await postId('1');
+    await db.update(sources).set({ config: { manualSubmission: true } }).where(eq(sources.key, 'fixture'));
+    let fetched = false;
+    const spy = { ...fixtureAdapter, fetchPost: async (...a: Parameters<typeof fixtureAdapter.fetchPost>) => { fetched = true; return fixtureAdapter.fetchPost(...a); } };
+    await evaluatePost(db, id, { llm: createFakeLlm([goodEval()]), adapter: spy, now: NOW });
+    expect(fetched).toBe(false);
+  });
+});

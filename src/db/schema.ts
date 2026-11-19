@@ -223,6 +223,7 @@ export const submissions = sleepy.table(
     manualPostedAt: ts('manual_posted_at'),
     manualExcerpt: text('manual_excerpt'),
     status: submissionStatus('status').notNull().default('RECEIVED'),
+    attempts: integer('attempts').notNull().default(0),
     rejectReason: text('reject_reason'),
     postId: integer('post_id').references(() => posts.id),
     createdAt: ts('created_at').notNull().defaultNow(),

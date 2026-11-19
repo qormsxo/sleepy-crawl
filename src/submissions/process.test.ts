@@ -159,3 +159,67 @@ describe('processSubmission idempotency', () => {
     expect(await sub(id)).toMatchObject({ status: 'REJECTED', rejectReason: 'x' });
   });
 });
+
+describe('processSubmission robustness (review fixes)', () => {
+  it('rejects an auto submission when the source was disabled after receipt', async () => {
+    await db.update(sources).set({ status: 'DISABLED' }).where(eq(sources.id, fixtureId));
+    const id = await autoSub('2');
+    await processSubmission(db, id, deps());
+    expect(await sub(id)).toMatchObject({ status: 'REJECTED', rejectReason: 'source_unavailable' });
+  });
+
+  it('waits (stays RECEIVED, no request) while the source is paused', async () => {
+    await db.update(sources).set({ pausedUntil: new Date(NOW.getTime() + 60_000) }).where(eq(sources.id, fixtureId));
+    let fetched = false;
+    const spy: SourceAdapter = { ...fixtureAdapter, fetchPost: async (...a) => { fetched = true; return fixtureAdapter.fetchPost(...a); } };
+    const id = await autoSub('2');
+    await processSubmission(db, id, deps({ adapterFor: () => spy }));
+    expect(fetched).toBe(false);
+    expect((await sub(id)).status).toBe('RECEIVED');
+  });
+
+  it('pauses the source and keeps the submission when the page is blocked', async () => {
+    const { HttpBlockedError } = await import('@/lib/http');
+    const blocked: SourceAdapter = { ...fixtureAdapter, fetchPost: async () => Promise.reject(new HttpBlockedError('https://x', 430)) };
+    const id = await autoSub('2');
+    await processSubmission(db, id, deps({ adapterFor: () => blocked }));
+    expect((await sub(id)).status).toBe('RECEIVED');
+    const [s] = await db.select().from(sources).where(eq(sources.id, fixtureId));
+    expect(s.pausedUntil?.getTime()).toBe(NOW.getTime() + 3_600_000);
+  });
+
+  it('leaves a manual submission RECEIVED (excerpt kept) when the daily LLM budget is spent', async () => {
+    const { settings } = await import('@/db/schema');
+    await db.update(settings).set({ value: 0 }).where(eq(settings.key, 'daily_eval_limit'));
+    const llm = spyLlm();
+    const id = await manualSub();
+    await processSubmission(db, id, deps({ llm }));
+    expect(llm.seen).toHaveLength(0);
+    expect(await sub(id)).toMatchObject({ status: 'RECEIVED' });
+    expect((await sub(id)).manualExcerpt).not.toBeNull();
+  });
+
+  it('keeps the excerpt and retries the same post after an LLM outage, then succeeds', async () => {
+    const down: LlmClient = { async evaluate() { throw new Error('503'); } };
+    const id = await manualSub();
+    await processSubmission(db, id, deps({ llm: down }));
+    const first = await sub(id);
+    expect(first.status).toBe('RECEIVED');
+    expect(first.manualExcerpt).not.toBeNull();
+    expect(first.postId).not.toBeNull();
+
+    const llm = spyLlm();
+    await processSubmission(db, id, deps({ llm }));
+    const done = await sub(id);
+    expect(done).toMatchObject({ status: 'PROCESSED', postId: first.postId, manualExcerpt: null });
+    expect(llm.seen[0].user).toContain('내용도 계란');
+    expect(await db.select().from(posts)).toHaveLength(1);
+  });
+
+  it('gives up after 3 failed attempts and erases the excerpt', async () => {
+    const down: LlmClient = { async evaluate() { throw new Error('503'); } };
+    const id = await manualSub();
+    for (let i = 0; i < 3; i++) await processSubmission(db, id, deps({ llm: down }));
+    expect(await sub(id)).toMatchObject({ status: 'REJECTED', rejectReason: 'processing_failed', manualExcerpt: null });
+  });
+});
