@@ -32,6 +32,10 @@ export type EvaluateDeps = {
   rethrowLlmErrors?: boolean;
   /** Body supplied by a manual submission: the site is never contacted. Used only for this evaluation. */
   bodyOverride?: string;
+  /** Evaluate with this prompt version instead of the active one. */
+  promptVersionId?: number;
+  /** REEVAL: comparison only — records an evaluation, never changes the post (설계 7-8). */
+  purpose?: 'LIVE' | 'REEVAL';
 };
 
 /** Evaluate one post with the active prompt version and apply the publish rules. */
@@ -39,10 +43,14 @@ export async function evaluatePost(db: DB, postId: number, deps: EvaluateDeps): 
   const now = deps.now ?? new Date();
   const [post] = await db.select().from(posts).where(eq(posts.id, postId));
   if (!post) throw new Error(`post ${postId} not found`);
-  if (post.statusSource === 'ADMIN') return post.status;
+  const purpose = deps.purpose ?? 'LIVE';
+  if (purpose === 'LIVE' && post.statusSource === 'ADMIN') return post.status;
 
-  const [prompt] = await db.select().from(promptVersions).where(eq(promptVersions.active, true));
-  if (!prompt) throw new Error('no active prompt version');
+  const [prompt] = await db
+    .select()
+    .from(promptVersions)
+    .where(deps.promptVersionId ? eq(promptVersions.id, deps.promptVersionId) : eq(promptVersions.active, true));
+  if (!prompt) throw new Error(deps.promptVersionId ? `prompt version ${deps.promptVersionId} not found` : 'no active prompt version');
   const [source] = await db.select().from(sources).where(eq(sources.id, post.sourceId));
   const memes = await db
     .select({ keyword: keywords.keyword, description: keywords.description })
@@ -149,9 +157,11 @@ export async function evaluatePost(db: DB, postId: number, deps: EvaluateDeps): 
       warnings: ok?.warnings ?? [],
       tokensIn: response?.tokensIn ?? null,
       tokensOut: response?.tokensOut ?? null,
-      purpose: 'LIVE',
+      purpose,
     })
     .returning({ id: evaluations.id });
+
+  if (purpose === 'REEVAL') return status;
 
   await db
     .update(posts)

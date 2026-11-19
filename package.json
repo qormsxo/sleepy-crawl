@@ -15,7 +15,8 @@
     "crawl:once": "tsx src/worker/cli.ts crawl",
     "eval:pending": "tsx src/worker/cli.ts eval",
     "submissions:process": "tsx src/worker/cli.ts submissions",
-    "admin:create": "tsx src/admin/create-cli.ts"
+    "admin:create": "tsx src/admin/create-cli.ts",
+    "reeval:process": "tsx src/worker/cli.ts reeval"
   },
   "dependencies": {
     "@google/genai": "^3.6.0",

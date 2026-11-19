@@ -232,6 +232,20 @@ export const submissions = sleepy.table(
   (t) => [index('submissions_ip_created').on(t.ipHash, t.createdAt), index('submissions_status').on(t.status)],
 );
 
+/** Admin-requested re-evaluations with a given prompt version (comparison only; posts are not changed). */
+export const reevalRequests = sleepy.table('reeval_requests', {
+  id: serial('id').primaryKey(),
+  promptVersionId: integer('prompt_version_id')
+    .notNull()
+    .references(() => promptVersions.id),
+  postIds: integer('post_ids').array().notNull(),
+  donePostIds: integer('done_post_ids').array().notNull().default([]),
+  status: text('status').notNull().default('PENDING'), // PENDING | RUNNING | DONE
+  createdBy: integer('created_by'),
+  createdAt: ts('created_at').notNull().defaultNow(),
+  finishedAt: ts('finished_at'),
+});
+
 export const adminUsers = sleepy.table('admin_users', {
   id: serial('id').primaryKey(),
   /** Stored lowercased. */

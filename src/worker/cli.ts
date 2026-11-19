@@ -8,6 +8,7 @@ import { createLlmClient } from '../llm';
 import { parseCliArgs } from './cli-args';
 import { findReceivedSubmissions } from './stuck';
 import { processSubmission } from '../submissions/process';
+import { processReevalRequests } from '../admin/prompts';
 import { submissions } from '../db/schema';
 
 /**
@@ -50,8 +51,11 @@ async function main() {
       console.log(`  submission ${id}: ${s.status}${s.rejectReason ? ` (${s.rejectReason})` : ''}`);
     }
     console.log(`submissions: ${ids.length}`);
+  } else if (command === 'reeval') {
+    const n = await processReevalRequests(db, { llm, now, max: 100 });
+    console.log(`reeval: ${n} posts`);
   } else {
-    throw new Error('usage: cli.ts crawl [sourceKey] [--now ISO] | eval [--now ISO] | submissions [--now ISO]');
+    throw new Error('usage: cli.ts crawl [sourceKey] [--now ISO] | eval [--now ISO] | submissions [--now ISO] | reeval');
   }
   process.exit(0);
 }

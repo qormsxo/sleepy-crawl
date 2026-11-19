@@ -10,12 +10,14 @@ import { findDueSources } from './scheduler';
 import { evalBudgetResumeAt } from './eval-budget';
 import { QUEUES, QUEUE_OPTIONS } from './queues';
 import { findReceivedSubmissions, findStuckPending } from './stuck';
+import { processReevalRequests } from '../admin/prompts';
 import { processSubmission } from '../submissions/process';
 import { posts } from '../db/schema';
 import { eq } from 'drizzle-orm';
 
 const STUCK_AFTER_MIN = 15;
 const SUBMISSIONS_PER_TICK = 10;
+const REEVALS_PER_TICK = 10;
 
 type CrawlJob = { sourceId: number };
 type EvalJob = { postId: number };
@@ -82,10 +84,17 @@ async function main() {
         logger.error({ err, submissionId: id }, 'submission processing failed');
       }
     }
+    // Admin-requested comparisons (prompt versions): a few per tick, within the daily LLM budget.
+    let reevaluated = 0;
+    try {
+      reevaluated = await processReevalRequests(db, { llm, now: new Date(), max: REEVALS_PER_TICK });
+    } catch (err) {
+      logger.error({ err }, 're-evaluation failed');
+    }
     // Jobs can be lost or give up (long outage, source pause): pick their posts up again.
     const stuck = await findStuckPending(db, new Date(), STUCK_AFTER_MIN);
     for (const postId of stuck) await enqueueEval(postId);
-    logger.info({ due, requeued: stuck.length, submissions: received.length }, 'tick');
+    logger.info({ due, requeued: stuck.length, submissions: received.length, reevaluated }, 'tick');
   });
 
   logger.info('worker started');
