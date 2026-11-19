@@ -113,3 +113,15 @@ describe('re-evaluation', () => {
     expect(r.postIds).toHaveLength(4);
   });
 });
+
+describe('re-evaluation budget (review fix)', () => {
+  it('counts re-evaluations against daily_eval_limit too', async () => {
+    const { settings } = await import('@/db/schema');
+    await db.update(settings).set({ value: 2 }).where(eq(settings.key, 'daily_eval_limit'));
+    const ids = (await postIds()).slice(0, 5);
+    await requestReeval(db, adminId, v1, { postIds: ids });
+    const done = await processReevalRequests(db, { llm: createFakeLlm([evalJson(60)]), now: NOW, adapter: fixtureAdapter, max: 10 });
+    expect(done).toBe(2);
+    expect(await db.select().from(evaluations).where(eq(evaluations.purpose, 'REEVAL'))).toHaveLength(2);
+  });
+});

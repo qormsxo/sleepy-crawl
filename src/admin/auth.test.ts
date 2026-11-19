@@ -3,7 +3,7 @@ import { createTestDb } from '../../tests/helpers/db';
 import { seed } from '@/db/seed';
 import type { DB } from '@/db/client';
 import { adminSessions, adminUsers } from '@/db/schema';
-import { createAdmin, hashPassword, login, logout, sessionFromToken, verifyPassword, SESSION_DAYS } from './auth';
+import { createAdmin, hashPassword, login, logout, sessionFromToken, verifyPassword, SESSION_DAYS, GLOBAL_LOCK_FAILURES } from './auth';
 
 const NOW = new Date('2026-11-19T10:00:00+09:00');
 let db: DB;
@@ -76,5 +76,17 @@ describe('login and sessions', () => {
   it('ignores garbage tokens', async () => {
     expect(await sessionFromToken(db, '', NOW)).toBeNull();
     expect(await sessionFromToken(db, 'x'.repeat(64), NOW)).toBeNull();
+  });
+});
+
+describe('login lockout hardening (review fix)', () => {
+  it('locks even when wrong attempts arrive in parallel', async () => {
+    await Promise.all(Array.from({ length: 8 }, () => login(db, 'admin@example.com', 'bad', 'ip9', NOW)));
+    expect(await login(db, 'admin@example.com', 'correct horse battery', 'ip9', NOW)).toEqual({ ok: false, error: 'locked' });
+  });
+
+  it('applies a global cap when failures come from many IPs (spoofed headers)', async () => {
+    for (let i = 0; i < GLOBAL_LOCK_FAILURES; i++) await login(db, 'admin@example.com', 'bad', `ip-${i}`, NOW);
+    expect(await login(db, 'admin@example.com', 'correct horse battery', 'fresh-ip', NOW)).toEqual({ ok: false, error: 'locked' });
   });
 });

@@ -3,7 +3,7 @@
 import { redirect } from 'next/navigation';
 import { getDb } from '@/db/client';
 import { requireAdmin } from '@/lib/admin-session';
-import { deleteSource, unpauseSource, updateSource } from '@/admin/sources';
+import { createSource, deleteSource, unpauseSource, updateSource } from '@/admin/sources';
 import { SOURCE_STATUSES } from '@/core/constants';
 
 const back = (key: string, msg: string) => redirect(`/admin/sources?key=${encodeURIComponent(key)}&msg=${encodeURIComponent(msg)}`);
@@ -41,4 +41,26 @@ export async function deleteSourceAction(id: number, key: string): Promise<void>
     back(key, '수집 기록이 있어 지울 수 없어요. 대신 상태를 "꺼짐"으로 바꿔 주세요.');
   }
   redirect('/admin/sources');
+}
+
+export async function createSourceAction(form: FormData): Promise<void> {
+  const admin = await requireAdmin();
+  const key = String(form.get('key') ?? '').trim();
+  let msg = '등록했어요. 상태는 "꺼짐"이니 설정을 확인한 뒤 켜 주세요.';
+  try {
+    const lists = String(form.get('lists') ?? '')
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean);
+    await createSource(getDb(), admin.id, {
+      key,
+      name: String(form.get('name') ?? '').trim(),
+      adapterKey: String(form.get('adapterKey') ?? ''),
+      timezone: String(form.get('timezone') ?? 'Asia/Seoul').trim() || 'Asia/Seoul',
+      config: lists.length ? { lists } : {},
+    });
+  } catch (err) {
+    msg = `등록하지 못했어요: ${err instanceof Error ? err.message.slice(0, 200) : '입력 확인'}`;
+  }
+  back(key, msg);
 }

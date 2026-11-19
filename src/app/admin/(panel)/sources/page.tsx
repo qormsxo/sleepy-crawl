@@ -6,7 +6,8 @@ import { crawlErrors, sources } from '@/db/schema';
 import { requireAdmin } from '@/lib/admin-session';
 import { SOURCE_STATUSES } from '@/core/constants';
 import { Badge, button, input, kst, STATUS_LABELS, statusTone, td, th } from '../ui';
-import { deleteSourceAction, unpauseSourceAction, updateSourceAction } from './actions';
+import { createSourceAction, deleteSourceAction, unpauseSourceAction, updateSourceAction } from './actions';
+import { adapterKeys } from '@/sources/registry';
 
 type SP = Promise<Record<string, string | string[] | undefined>>;
 
@@ -23,6 +24,7 @@ async function Sources({ searchParams }: { searchParams: SP }) {
 
   return (
     <div className="grid gap-6 lg:grid-cols-[18rem_1fr]">
+      <div className="flex flex-col gap-4">
       <ul className="flex flex-col gap-1">
         {all.map((s) => (
           <li key={s.id}>
@@ -33,6 +35,21 @@ async function Sources({ searchParams }: { searchParams: SP }) {
           </li>
         ))}
       </ul>
+      <details className="rounded-lg border border-slate-800 p-3 text-sm text-slate-300">
+        <summary className="cursor-pointer">커뮤니티 등록</summary>
+        <form action={createSourceAction} className="mt-3 flex flex-col gap-2">
+          <input name="key" required pattern="[a-z0-9_-]{2,40}" placeholder="키 (영문 소문자)" className={input} />
+          <input name="name" required maxLength={100} placeholder="표시 이름" className={input} />
+          <select name="adapterKey" className={input} aria-label="어댑터">
+            {adapterKeys().map((k) => <option key={k} value={k}>{k}</option>)}
+          </select>
+          <input name="timezone" defaultValue="Asia/Seoul" className={input} aria-label="시간대" />
+          <textarea name="lists" rows={3} placeholder="목록 주소 (한 줄에 하나)" className={`${input} text-xs`} />
+          <button type="submit" className={`${button} self-start`}>등록</button>
+          <p className="text-xs text-slate-500">코드에 어댑터가 있는 사이트만 등록할 수 있어요. 새 사이트는 어댑터 작업이 먼저 필요해요.</p>
+        </form>
+      </details>
+      </div>
 
       {selected ? (
         <div className="flex flex-col gap-4">

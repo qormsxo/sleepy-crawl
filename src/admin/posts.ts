@@ -70,6 +70,10 @@ export async function updatePost(db: DB, adminId: number, id: number, input: Pos
   const [before] = await db.select().from(posts).where(eq(posts.id, id));
   if (!before) throw new Error(`post ${id} not found`);
   const status = change.status ?? before.status;
+  // Marking ADMIN freezes automatic evaluation, so it needs an actual decision (not pending/failed).
+  if (!(ADMIN_STATUSES as readonly string[]).includes(status)) {
+    throw new Error('choose a status (공개/검토 대기/비공개/차단) for a post that has not been judged yet');
+  }
   await db
     .update(posts)
     .set({

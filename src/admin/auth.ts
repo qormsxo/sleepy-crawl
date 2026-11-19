@@ -11,6 +11,8 @@ export const MIN_PASSWORD = 12;
 export const SESSION_DAYS = 7;
 export const LOCK_FAILURES = 5;
 export const LOCK_WINDOW_MS = 15 * 60_000;
+/** Across all IPs: a spoofed or rotating client IP can't buy unlimited guesses. */
+export const GLOBAL_LOCK_FAILURES = 30;
 
 /** scrypt$N$r$p$salt$hash (Node built-in, no native module). */
 export async function hashPassword(password: string): Promise<string> {
@@ -47,23 +49,37 @@ export type LoginResult = { ok: true; token: string; expiresAt: Date } | { ok: f
 
 /** Same 'invalid' answer for unknown email and wrong password; locks an IP after repeated failures. */
 export async function login(db: DB, email: string, password: string, ipHash: string, now: Date): Promise<LoginResult> {
-  const [{ n }] = await db
-    .select({ n: count() })
-    .from(adminLoginAttempts)
-    .where(
-      and(
-        eq(adminLoginAttempts.ipHash, ipHash),
-        eq(adminLoginAttempts.success, false),
-        gt(adminLoginAttempts.at, new Date(now.getTime() - LOCK_WINDOW_MS)),
-      ),
+  const since = new Date(now.getTime() - LOCK_WINDOW_MS);
+  const failures = async (byIp: boolean) =>
+    Number(
+      (
+        await db
+          .select({ n: count() })
+          .from(adminLoginAttempts)
+          .where(
+            and(
+              byIp ? eq(adminLoginAttempts.ipHash, ipHash) : undefined,
+              eq(adminLoginAttempts.success, false),
+              gt(adminLoginAttempts.at, since),
+            ),
+          )
+      )[0].n,
     );
-  if (n >= LOCK_FAILURES) return { ok: false, error: 'locked' };
+  if ((await failures(true)) >= LOCK_FAILURES || (await failures(false)) >= GLOBAL_LOCK_FAILURES) {
+    return { ok: false, error: 'locked' };
+  }
 
+  // Record the attempt as a failure *before* the (slow) password check, so parallel guesses
+  // see each other; flip it to success only if the password matches.
+  const [attempt] = await db
+    .insert(adminLoginAttempts)
+    .values({ ipHash, success: false, at: now })
+    .returning({ id: adminLoginAttempts.id });
   const [user] = await db.select().from(adminUsers).where(eq(adminUsers.email, email.trim().toLowerCase()));
   // Hash even for unknown emails so response time doesn't reveal which emails exist.
   const ok = user ? await verifyPassword(password, user.passwordHash) : (await hashPassword(password), false);
-  await db.insert(adminLoginAttempts).values({ ipHash, success: ok, at: now });
   if (!ok || !user) return { ok: false, error: 'invalid' };
+  await db.update(adminLoginAttempts).set({ success: true }).where(eq(adminLoginAttempts.id, attempt.id));
 
   const token = randomBytes(32).toString('base64url');
   const expiresAt = new Date(now.getTime() + SESSION_DAYS * 86_400_000);

@@ -15,7 +15,9 @@ type SP = Promise<Record<string, string | string[] | undefined>>;
 async function Detail({ params, searchParams }: { params: Params; searchParams: SP }) {
   await requireAdmin();
   const id = Number((await params).id);
-  const saved = (await searchParams).saved === '1';
+  const sp = await searchParams;
+  const saved = sp.saved === '1';
+  const failed = sp.error === '1';
   const d = Number.isInteger(id) ? await postDetail(getDb(), id) : null;
   if (!d) notFound();
   const p = d.post;
@@ -44,6 +46,7 @@ async function Detail({ params, searchParams }: { params: Params; searchParams: 
       <form action={updatePostAction.bind(null, p.id)} className="flex flex-col gap-3 rounded-lg border border-slate-800 p-4">
         <h2 className="text-sm font-bold text-slate-200">관리자 결정</h2>
         {saved && <p className="text-sm text-emerald-300">저장했어요.</p>}
+        {failed && <p className="text-sm text-rose-300">저장하지 못했어요. 아직 판정되지 않은 글은 상태를 골라야 하고, 점수는 0~100이어야 해요.</p>}
         <label className="flex items-center gap-2 text-sm text-slate-300">
           상태
           <select name="status" defaultValue={['PUBLISHED', 'REVIEW', 'HIDDEN', 'BLOCKED'].includes(p.status) ? p.status : ''} className={input}>

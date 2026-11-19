@@ -31,7 +31,7 @@ export async function setAdminCookie(token: string, expiresAt: Date): Promise<vo
   (await cookies()).set(ADMIN_COOKIE, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    sameSite: 'strict', // spec 7-12; the admin is never entered via cross-site links
     path: '/',
     expires: expiresAt,
   });

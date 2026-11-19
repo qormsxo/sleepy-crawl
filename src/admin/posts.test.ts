@@ -99,3 +99,12 @@ describe('listSubmissions', () => {
     expect(JSON.stringify(all)).not.toContain('secret-hash');
   });
 });
+
+describe('updatePost on posts not yet judged (review fix)', () => {
+  it('requires an explicit final status, so a pending post is never locked as ADMIN without a decision', async () => {
+    const id = await firstId(); // PENDING_EVAL
+    await expect(updatePost(db, adminId, id, { categories: ['MEME'] }, NOW)).rejects.toThrow(/status/);
+    const [p] = await db.select().from(posts).where(eq(posts.id, id));
+    expect(p.statusSource).toBe('AUTO');
+  });
+});

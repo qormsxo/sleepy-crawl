@@ -14,6 +14,11 @@ const adapters: Record<string, SourceAdapter> = {
 
 const DEV_ONLY = new Set(['fixture']);
 
+/** Adapters that exist in code (a new community needs one before it can be registered). */
+export function adapterKeys(): string[] {
+  return Object.keys(adapters).filter((k) => !(DEV_ONLY.has(k) && process.env.NODE_ENV === 'production'));
+}
+
 export function getAdapter(key: string): SourceAdapter {
   if (DEV_ONLY.has(key) && process.env.NODE_ENV === 'production') {
     throw new Error(`adapter "${key}" is disabled in production`);
