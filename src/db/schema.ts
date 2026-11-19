@@ -232,6 +232,46 @@ export const submissions = sleepy.table(
   (t) => [index('submissions_ip_created').on(t.ipHash, t.createdAt), index('submissions_status').on(t.status)],
 );
 
+export const adminUsers = sleepy.table('admin_users', {
+  id: serial('id').primaryKey(),
+  /** Stored lowercased. */
+  email: text('email').notNull().unique(),
+  /** scrypt$N$r$p$salt$hash — never the password. */
+  passwordHash: text('password_hash').notNull(),
+  createdAt: ts('created_at').notNull().defaultNow(),
+  lastLoginAt: ts('last_login_at'),
+});
+
+export const adminSessions = sleepy.table('admin_sessions', {
+  /** SHA-256 of the cookie token; the token itself is never stored. */
+  tokenHash: text('token_hash').primaryKey(),
+  adminId: integer('admin_id')
+    .notNull()
+    .references(() => adminUsers.id),
+  createdAt: ts('created_at').notNull().defaultNow(),
+  expiresAt: ts('expires_at').notNull(),
+});
+
+export const adminLoginAttempts = sleepy.table(
+  'admin_login_attempts',
+  {
+    id: serial('id').primaryKey(),
+    ipHash: text('ip_hash').notNull(),
+    success: boolean('success').notNull(),
+    at: ts('at').notNull().defaultNow(),
+  },
+  (t) => [index('admin_login_attempts_ip_at').on(t.ipHash, t.at)],
+);
+
+export const adminAuditLog = sleepy.table('admin_audit_log', {
+  id: serial('id').primaryKey(),
+  adminId: integer('admin_id').references(() => adminUsers.id),
+  action: text('action').notNull(),
+  target: text('target').notNull(),
+  detail: jsonb('detail').$type<Record<string, unknown>>(),
+  at: ts('at').notNull().defaultNow(),
+});
+
 /** List items already judged (e.g. out of window) so their pages are never fetched again. */
 export const seenItems = sleepy.table(
   'seen_items',
